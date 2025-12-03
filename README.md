@@ -170,10 +170,11 @@ The hardware maintains a 4-operation circular buffer for undo/redo:
 #### Inputs (`ui_in[7:0]`)
 | Pin | Name | Description |
 |-----|------|-------------|
-| `ui[0]` | `pmod_data` | Gamepad PMOD data line |
-| `ui[1]` | `pmod_clk` | Gamepad PMOD clock |
-| `ui[2]` | `pmod_latch` | Gamepad PMOD latch |
-| `ui[3:7]` | — | Unused |
+| `ui[0:3]` | — | Unused |
+| `ui[4]` | `pmod_latch` | Gamepad PMOD latch (PMOD IO5) |
+| `ui[5]` | `pmod_clk` | Gamepad PMOD clock (PMOD IO6) |
+| `ui[6]` | `pmod_data` | Gamepad PMOD data line (PMOD IO7) |
+| `ui[7]` | — | Unused |
 
 #### Outputs (`uo_out[7:0]`)
 | Pin | Name | Description |

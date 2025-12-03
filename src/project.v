@@ -18,10 +18,11 @@ module tt_um_example (
 
     // ================================================================
     // Gamepad PMOD Input
+    // PMOD IO5 = Latch (ui[4]), PMOD IO6 = Clock (ui[5]), PMOD IO7 = Data (ui[6])
     // ================================================================
-    wire pmod_data  = ui_in[0];
-    wire pmod_clk   = ui_in[1];
-    wire pmod_latch = ui_in[2];
+    wire pmod_latch = ui_in[4];  // PMOD IO5
+    wire pmod_clk   = ui_in[5];  // PMOD IO6
+    wire pmod_data  = ui_in[6];  // PMOD IO7
 
     wire gp_b, gp_y, gp_select, gp_start;
     wire gp_up, gp_down, gp_left, gp_right;
@@ -248,7 +249,7 @@ module tt_um_example (
     // ================================================================
     // Unused Signals
     // ================================================================
-    wire _unused = &{ena, sda_out_int, ui_in[7:3], uio_in[7:3], uio_in[0],
+    wire _unused = &{ena, sda_out_int, ui_in[7], ui_in[3:0], uio_in[7:3], uio_in[0],
                      gp_is_present, pkt_busy, fill_busy, fill_done, corner_a_set_wire,
                      undo_restore, undo_x, undo_y, undo_color, can_undo, can_redo};
 
