@@ -13,7 +13,7 @@ Tiny Canvas is a hardware implementation of an MS Paint-style drawing applicatio
 
 ### Core Functionality
 
-**Color Mixing**: The Y, X, and B buttons toggle Red, Green, and Blue color channels respectively. These combine additively to produce 8 colors:
+**Color Mixing**: The A, Y, and X buttons toggle Red, Green, and Blue color channels respectively. These combine additively to produce 8 colors:
 - R+G = Yellow, R+B = Magenta, G+B = Cyan, R+G+B = White
 - When no color is selected, the cursor moves without painting
 
@@ -21,7 +21,7 @@ Tiny Canvas is a hardware implementation of an MS Paint-style drawing applicatio
 - L/R shoulder buttons adjust brush size from 1×1 to 8×8 pixels
 - Start button cycles through symmetry modes: Off → Horizontal → Vertical → 4-Way
 
-**Fill Rectangle**: Select button toggles fill mode. Press A to set corner A, move cursor, press A again to set corner B and fill the rectangle.
+**Fill Rectangle**: Select button toggles fill mode. Press Y to set corner A, move cursor, press Y again to set corner B and fill the rectangle.
 
 **Undo/Redo**: L+R together undoes, Select+Start together redoes (4-operation buffer).
 

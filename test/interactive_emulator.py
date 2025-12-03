@@ -267,25 +267,27 @@ class CanvasEmulator:
                 self.recalculate_layout()
             
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
+                # A = Red, Y = Green (or fill corner), X = Blue
+                if event.key == pygame.K_a:
                     self.canvas.sw_red = not self.canvas.sw_red
                     self.show_message(f"Red {'ON' if self.canvas.sw_red else 'OFF'}")
-                elif event.key == pygame.K_g:
-                    self.canvas.sw_green = not self.canvas.sw_green
-                    self.show_message(f"Green {'ON' if self.canvas.sw_green else 'OFF'}")
-                elif event.key == pygame.K_b:
+                elif event.key == pygame.K_y:
+                    if self.canvas.fill_mode:
+                        # Set fill corner in fill mode
+                        result = self.canvas.set_fill_corner()
+                        self.show_message(result)
+                    else:
+                        # Toggle green when not in fill mode
+                        self.canvas.sw_green = not self.canvas.sw_green
+                        self.show_message(f"Green {'ON' if self.canvas.sw_green else 'OFF'}")
+                elif event.key == pygame.K_x:
                     self.canvas.sw_blue = not self.canvas.sw_blue
                     self.show_message(f"Blue {'ON' if self.canvas.sw_blue else 'OFF'}")
                 
                 elif event.key == pygame.K_SPACE:
-                    if self.canvas.fill_mode:
-                        # Set fill corner
-                        result = self.canvas.set_fill_corner()
-                        self.show_message(result)
-                    else:
-                        # Toggle brush/eraser
-                        self.canvas.brush_mode = not self.canvas.brush_mode
-                        self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
+                    # Toggle brush/eraser
+                    self.canvas.brush_mode = not self.canvas.brush_mode
+                    self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
                 
                 elif event.key == pygame.K_TAB:
                     # Toggle fill mode
@@ -348,7 +350,7 @@ class CanvasEmulator:
         title = self.font_title.render("TINY CANVAS EMULATOR", True, self.accent_color)
         self.screen.blit(title, (self.window_width // 2 - title.get_width() // 2, 15))
         
-        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Fill | Tab:Fill Mode | Shift+S:Sym | +/-:Size | Z:Undo"
+        hint = "Arrows:Move | A/X/Y:Color | Y:Fill Corner | Tab:Fill Mode | Shift+S:Sym | +/-:Size | Z:Undo"
         self.screen.blit(self.font_small.render(hint, True, (120, 120, 130)),
                         (self.window_width // 2 - 300, 45))
     
@@ -454,7 +456,7 @@ class CanvasEmulator:
         y += 15
         self.screen.blit(self.font_medium.render("Controls:", True, self.text_color), (sx, y))
         y += 22
-        for ctrl in ["Arrows = Move", "R/G/B = Colors", "Space = Brush/Fill corner",
+        for ctrl in ["Arrows = Move", "A/X/Y = Colors", "Y = Fill corner (fill mode)",
                      "Tab = Toggle fill mode", "+/- = Brush size", "Shift+S = Symmetry",
                      "Z = Undo, Y = Redo", "C = Clear"]:
             self.screen.blit(self.font_small.render(ctrl, True, (140, 140, 150)), (sx, y))

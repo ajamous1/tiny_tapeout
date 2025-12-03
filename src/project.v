@@ -38,9 +38,29 @@ module tt_um_example (
     );
 
     // ================================================================
+    // Fill Mode (needed early for Y button logic)
+    // ================================================================
+    wire fill_active_wire;
+    wire [7:0] corner_a_x_wire, corner_a_y_wire, corner_b_x_wire, corner_b_y_wire;
+    wire corner_a_set_wire, fill_trigger_wire;
+
+    fill_mode fill_mode_inst (
+        .clk(clk), .rst_n(rst_n),
+        .btn_mode(gp_select),
+        .btn_point(gp_y),
+        .x_pos(x_pos), .y_pos(y_pos),
+        .fill_active(fill_active_wire),
+        .corner_a_x(corner_a_x_wire), .corner_a_y(corner_a_y_wire),
+        .corner_a_set(corner_a_set_wire),
+        .corner_b_x(corner_b_x_wire), .corner_b_y(corner_b_y_wire),
+        .fill_trigger(fill_trigger_wire)
+    );
+
+    // ================================================================
     // Button Edge Detection & Toggle Logic
     // ================================================================
-    reg y_prev, x_prev, b_prev;
+    // A = Red, Y = Green (when not in fill mode), X = Blue
+    reg a_prev, y_prev, x_prev;
     reg sw_red, sw_green, sw_blue, brush_mode;
     
     // Combo detection for undo/redo
@@ -50,17 +70,19 @@ module tt_um_example (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            y_prev <= 1'b0; x_prev <= 1'b0; b_prev <= 1'b0;
+            a_prev <= 1'b0; y_prev <= 1'b0; x_prev <= 1'b0;
             sw_red <= 1'b0; sw_green <= 1'b0; sw_blue <= 1'b0;
             brush_mode <= 1'b1;
             undo_prev <= 1'b0; redo_prev <= 1'b0;
         end else begin
-            y_prev <= gp_y; x_prev <= gp_x; b_prev <= gp_b;
+            a_prev <= gp_a; y_prev <= gp_y; x_prev <= gp_x;
             undo_prev <= undo_combo; redo_prev <= redo_combo;
             
-            if (gp_y && !y_prev) sw_red <= ~sw_red;
-            if (gp_x && !x_prev) sw_green <= ~sw_green;
-            if (gp_b && !b_prev) sw_blue <= ~sw_blue;
+            // A = Red, X = Blue
+            if (gp_a && !a_prev) sw_red <= ~sw_red;
+            if (gp_x && !x_prev) sw_blue <= ~sw_blue;
+            // Y = Green (only when NOT in fill mode)
+            if (gp_y && !y_prev && !fill_active_wire) sw_green <= ~sw_green;
         end
     end
     
@@ -117,25 +139,6 @@ module tt_um_example (
     );
 
     // ================================================================
-    // Fill Mode (Select = toggle, A = set corner)
-    // ================================================================
-    wire fill_active;
-    wire [7:0] corner_a_x, corner_a_y, corner_b_x, corner_b_y;
-    wire corner_a_set, fill_trigger;
-
-    fill_mode fill_mode_inst (
-        .clk(clk), .rst_n(rst_n),
-        .btn_mode(gp_select),
-        .btn_point(gp_a),
-        .x_pos(x_pos), .y_pos(y_pos),
-        .fill_active(fill_active),
-        .corner_a_x(corner_a_x), .corner_a_y(corner_a_y),
-        .corner_a_set(corner_a_set),
-        .corner_b_x(corner_b_x), .corner_b_y(corner_b_y),
-        .fill_trigger(fill_trigger)
-    );
-
-    // ================================================================
     // Fill Drawing (filled rectangle)
     // ================================================================
     wire [7:0] fill_x, fill_y;
@@ -143,9 +146,9 @@ module tt_um_example (
 
     fill_draw fill_draw_inst (
         .clk(clk), .rst_n(rst_n),
-        .start(fill_trigger),
-        .x0(corner_a_x), .y0(corner_a_y),
-        .x1(corner_b_x), .y1(corner_b_y),
+        .start(fill_trigger_wire),
+        .x0(corner_a_x_wire), .y0(corner_a_y_wire),
+        .x1(corner_b_x_wire), .y1(corner_b_y_wire),
         .x_out(fill_x), .y_out(fill_y),
         .pixel_valid(fill_valid),
         .busy(fill_busy),
@@ -156,7 +159,7 @@ module tt_um_example (
     // Pixel Source Selection
     // ================================================================
     // Freehand: when moving and paint enabled and not in fill mode
-    wire freehand_trigger = movement_edge && paint_enable && !fill_active;
+    wire freehand_trigger = movement_edge && paint_enable && !fill_active_wire;
     
     // Select pixel source: fill operation or cursor position
     wire [7:0] pixel_x = fill_busy ? fill_x : x_pos;
@@ -247,7 +250,7 @@ module tt_um_example (
     // Unused Signals
     // ================================================================
     wire _unused = &{ena, sda_out_int, ui_in[7:3], uio_in[7:3], uio_in[0],
-                     gp_is_present, pkt_busy, fill_busy, fill_done, corner_a_set,
+                     gp_is_present, pkt_busy, fill_busy, fill_done, corner_a_set_wire,
                      undo_restore, undo_x, undo_y, undo_color, can_undo, can_redo};
 
 endmodule

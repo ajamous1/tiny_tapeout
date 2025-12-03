@@ -22,7 +22,7 @@ The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 
 
 | Feature | Description |
 |---------|-------------|
-| **RGB Color Mixing** | Additive color mixing using Y/X/B buttons to toggle R/G/B channels |
+| **RGB Color Mixing** | Additive color mixing using A/Y/X buttons to toggle R/G/B channels |
 | **8 Colors** | Black, Red, Green, Blue, Yellow, Magenta, Cyan, White |
 | **Variable Brush Size** | 1×1 to 8×8 pixel brushes (L/R shoulder buttons) |
 | **Symmetry Modes** | Off, Horizontal mirror, Vertical mirror, 4-way symmetry |
@@ -50,10 +50,9 @@ Tiny Canvas uses a single SNES-compatible controller. Here's the complete button
 ### Face Buttons (Color Controls)
 | Button | Function | Toggle |
 |--------|----------|--------|
-| **Y** | Toggle Red channel | Yes |
-| **X** | Toggle Green channel | Yes |
-| **B** | Toggle Blue channel | Yes |
-| **A** | Set fill corner (in Fill mode) | — |
+| **A** | Toggle Red channel | Yes |
+| **Y** | Toggle Green channel (or set fill corner in Fill mode) | Yes |
+| **X** | Toggle Blue channel | Yes |
 
 ### Shoulder & System Buttons
 | Button | Function |
@@ -132,9 +131,9 @@ Fill Rectangle allows you to fill a rectangular area with the current color:
 
 1. Press **Select** to enter Fill mode
 2. Move cursor to first corner
-3. Press **A** to set Corner A
+3. Press **Y** to set Corner A
 4. Move cursor to opposite corner
-5. Press **A** to set Corner B and execute fill
+5. Press **Y** to set Corner B and execute fill
 
 **[IMAGE: fill_rectangle_demo.gif - Animation showing the fill rectangle workflow]**
 
@@ -293,14 +292,13 @@ python interactive_emulator.py
 | Key | Action |
 |-----|--------|
 | Arrow keys | Move cursor (D-Pad) |
-| `R` | Toggle Red |
-| `G` | Toggle Green |
-| `B` | Toggle Blue |
+| `A` | Toggle Red |
+| `Y` | Toggle Green (or set fill corner in Fill mode) |
+| `X` | Toggle Blue |
 | `+` / `=` | Increase brush size |
 | `-` | Decrease brush size |
-| `S` | Cycle symmetry mode |
-| `F` | Toggle Fill mode |
-| `Space` | Set fill corner (A button) |
+| `Shift+S` | Cycle symmetry mode |
+| `Tab` | Toggle Fill mode |
 | `Z` | Undo |
 | `Y` | Redo |
 | `C` | Clear canvas |

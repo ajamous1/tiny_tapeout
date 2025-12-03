@@ -1,6 +1,6 @@
 // Fill mode controller.
 // Select button toggles fill mode on/off.
-// A button sets corners for filled rectangle.
+// Y button sets corners for filled rectangle.
 
 module fill_mode (
     input  wire       clk,
