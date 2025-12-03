@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Tiny Canvas Emulator - Full Feature Version
-Supports: Brush Size, Symmetry, Draw Modes, Undo/Redo (per stroke)
+Tiny Canvas Emulator
+Supports: Brush Size, Symmetry, Undo/Redo (per stroke)
+Freehand drawing mode only.
 """
 
 import pygame
 import sys
 import os
-import random
 
 # ============================================================================
 # Colour Definitions
@@ -28,12 +28,11 @@ COLOR_NAMES = {
     0b100: "Red", 0b101: "Magenta", 0b110: "Yellow", 0b111: "White"
 }
 
-DRAW_MODES = ["Freehand", "Line", "Rectangle", "Spray"]
 SYMMETRY_MODES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
 
 
 class TinyCanvas:
-    """Emulates the Tiny Canvas hardware with all new features."""
+    """Emulates the Tiny Canvas hardware."""
     
     def __init__(self):
         self.grid_size = 256
@@ -49,20 +48,15 @@ class TinyCanvas:
         self.sw_blue = False
         self.brush_mode = True
         
-        # New features
+        # Features
         self.brush_size = 0      # 0-7 (1x1 to 8x8)
         self.symmetry_mode = 0   # 0=off, 1=H, 2=V, 3=4-way
-        self.draw_mode = 0       # 0=freehand, 1=line, 2=rect, 3=spray
-        
-        # Line/Rect point storage
-        self.point_a = None
         
         # Undo/Redo - stores STROKES not individual pixels
-        # Each stroke is a list of (x, y, old_color, new_color)
-        self.undo_buffer = []    # List of strokes
-        self.redo_buffer = []    # List of strokes
-        self.current_stroke = [] # Pixels being painted in current stroke
-        self.max_undo = 32       # Max strokes to remember
+        self.undo_buffer = []
+        self.redo_buffer = []
+        self.current_stroke = []
+        self.max_undo = 32
         
         # I2C state
         self.i2c_x = 0
@@ -162,103 +156,25 @@ class TinyCanvas:
         self.i2c_y = y
         self.i2c_status = self.get_status()
     
-    def draw_line(self, x0, y0, x1, y1):
-        """Draw line from (x0,y0) to (x1,y1)."""
-        self.start_stroke()
-        color = self.get_color_mix()
-        pixels = []
-        
-        x, y = x0, y0
-        while True:
-            expanded = self.expand_brush(x, y)
-            pixels.extend(expanded)
-            
-            if x == x1 and y == y1:
-                break
-            
-            if x < x1: x += 1
-            elif x > x1: x -= 1
-            
-            if y < y1: y += 1
-            elif y > y1: y -= 1
-        
-        pixels = self.apply_symmetry(pixels)
-        self.paint_pixels(list(set(pixels)), color)
-        self.end_stroke()
-    
-    def draw_rect(self, x0, y0, x1, y1):
-        """Draw rectangle outline."""
-        self.start_stroke()
-        color = self.get_color_mix()
-        pixels = []
-        
-        min_x, max_x = min(x0, x1), max(x0, x1)
-        min_y, max_y = min(y0, y1), max(y0, y1)
-        
-        for x in range(min_x, max_x + 1):
-            pixels.extend(self.expand_brush(x, max_y))
-            pixels.extend(self.expand_brush(x, min_y))
-        
-        for y in range(min_y + 1, max_y):
-            pixels.extend(self.expand_brush(min_x, y))
-            pixels.extend(self.expand_brush(max_x, y))
-        
-        pixels = self.apply_symmetry(list(set(pixels)))
-        self.paint_pixels(pixels, color)
-        self.end_stroke()
-    
-    def spray_paint(self, x, y):
-        """Spray random pixels around position."""
-        color = self.get_color_mix()
-        pixels = []
-        for _ in range(8):
-            dx = random.randint(-8, 7)
-            dy = random.randint(-8, 7)
-            px, py = x + dx, y + dy
-            if 0 <= px < 256 and 0 <= py < 256:
-                pixels.append((px, py))
-        pixels = self.apply_symmetry(pixels)
-        self.paint_pixels(pixels, color)
-    
     def undo(self):
         """Undo last stroke (entire brush action)."""
         if self.undo_buffer:
             stroke = self.undo_buffer.pop()
-            # Restore all pixels in this stroke
             for x, y, old_color, new_color in stroke:
                 self.canvas[y][x] = old_color
             self.redo_buffer.append(stroke)
-            return len(stroke)  # Return pixel count
+            return len(stroke)
         return 0
     
     def redo(self):
         """Redo last undone stroke."""
         if self.redo_buffer:
             stroke = self.redo_buffer.pop()
-            # Re-apply all pixels in this stroke
             for x, y, old_color, new_color in stroke:
                 self.canvas[y][x] = new_color
             self.undo_buffer.append(stroke)
             return len(stroke)
         return 0
-    
-    def set_point(self):
-        """Set point A or B for line/rect mode."""
-        if self.draw_mode in [1, 2]:
-            if self.point_a is None:
-                self.point_a = (self.cursor_x, self.cursor_y)
-                return "Point A set"
-            else:
-                x0, y0 = self.point_a
-                x1, y1 = self.cursor_x, self.cursor_y
-                self.point_a = None
-                if self.draw_mode == 1:
-                    self.draw_line(x0, y0, x1, y1)
-                    return "Line drawn"
-                else:
-                    self.draw_rect(x0, y0, x1, y1)
-                    return "Rectangle drawn"
-        return None
     
     def update_cursor(self, current_time, direction):
         """Update cursor based on direction."""
@@ -281,10 +197,8 @@ class TinyCanvas:
         
         if moved:
             self.last_move_time = current_time
-            if self.draw_mode == 0 and self.should_paint():
+            if self.should_paint():
                 self.paint_at(self.cursor_x, self.cursor_y)
-            elif self.draw_mode == 3 and self.should_paint():
-                self.spray_paint(self.cursor_x, self.cursor_y)
         
         return moved
     
@@ -293,7 +207,6 @@ class TinyCanvas:
         self.undo_buffer.clear()
         self.redo_buffer.clear()
         self.current_stroke = []
-        self.point_a = None
 
 
 class CanvasEmulator:
@@ -307,7 +220,7 @@ class CanvasEmulator:
         self.window_height = int(info.current_h * 0.85)
         
         self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
-        pygame.display.set_caption("Tiny Canvas - Full Features")
+        pygame.display.set_caption("Tiny Canvas Emulator")
         
         self.grid_size = 256
         self.sidebar_width = 380
@@ -373,15 +286,10 @@ class CanvasEmulator:
                     self.canvas.sw_blue = not self.canvas.sw_blue
                     self.show_message(f"Blue {'ON' if self.canvas.sw_blue else 'OFF'}")
                 
-                # Brush/Eraser or Set Point
+                # Brush/Eraser
                 elif event.key == pygame.K_SPACE:
-                    if self.canvas.draw_mode in [1, 2]:
-                        result = self.canvas.set_point()
-                        if result:
-                            self.show_message(result)
-                    else:
-                        self.canvas.brush_mode = not self.canvas.brush_mode
-                        self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
+                    self.canvas.brush_mode = not self.canvas.brush_mode
+                    self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
                 
                 # Brush size
                 elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
@@ -392,12 +300,6 @@ class CanvasEmulator:
                     if self.canvas.brush_size < 7:
                         self.canvas.brush_size += 1
                         self.show_message(f"Brush: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}")
-                
-                # Draw mode
-                elif event.key == pygame.K_TAB:
-                    self.canvas.draw_mode = (self.canvas.draw_mode + 1) % 4
-                    self.canvas.point_a = None
-                    self.show_message(f"Mode: {DRAW_MODES[self.canvas.draw_mode]}")
                 
                 # Symmetry
                 elif event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_SHIFT:
@@ -433,11 +335,10 @@ class CanvasEmulator:
         keys = pygame.key.get_pressed()
         any_movement = keys[pygame.K_UP] or keys[pygame.K_DOWN] or keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]
         
-        # Start stroke when beginning to move in freehand/spray mode
+        # Start stroke when beginning to move
         if any_movement and not self.in_stroke:
-            if self.canvas.draw_mode in [0, 3]:  # Freehand or Spray
-                self.canvas.start_stroke()
-                self.in_stroke = True
+            self.canvas.start_stroke()
+            self.in_stroke = True
         
         # End stroke when stopping movement
         if not any_movement and self.in_stroke:
@@ -456,10 +357,10 @@ class CanvasEmulator:
         return True
     
     def draw_header(self):
-        title = self.font_title.render("TINY CANVAS - Full Feature Emulator", True, self.accent_color)
+        title = self.font_title.render("TINY CANVAS EMULATOR", True, self.accent_color)
         self.screen.blit(title, (self.window_width // 2 - title.get_width() // 2, 15))
         
-        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Point | Tab:Mode | Shift+S:Symmetry | +/-:Size | Z:Undo | Y:Redo"
+        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Eraser | Shift+S:Symmetry | +/-:Size | Z:Undo | Y:Redo"
         hint_surf = self.font_small.render(hint, True, (120, 120, 130))
         self.screen.blit(hint_surf, (self.window_width // 2 - hint_surf.get_width() // 2, 45))
     
@@ -486,14 +387,6 @@ class CanvasEmulator:
         cy = self.canvas_y + screen_y * self.cell_size + self.cell_size // 2
         pygame.draw.rect(self.screen, (255, 255, 0),
                         (cx - cursor_size // 2, cy - cursor_size // 2, cursor_size, cursor_size), 2)
-        
-        # Point A marker
-        if self.canvas.point_a:
-            ax, ay = self.canvas.point_a
-            screen_ay = self.grid_size - 1 - ay
-            px = self.canvas_x + ax * self.cell_size + self.cell_size // 2
-            py = self.canvas_y + screen_ay * self.cell_size + self.cell_size // 2
-            pygame.draw.circle(self.screen, (255, 100, 100), (px, py), 6, 2)
     
     def draw_sidebar(self):
         sx = self.window_width - self.sidebar_width + 15
@@ -536,11 +429,6 @@ class CanvasEmulator:
         self.screen.blit(pos, (sx, y))
         y += 25
         
-        # Draw mode
-        dm = self.font_medium.render(f"Draw Mode: {DRAW_MODES[self.canvas.draw_mode]}", True, self.highlight)
-        self.screen.blit(dm, (sx, y))
-        y += 25
-        
         # Brush size
         bs = self.font_medium.render(f"Brush Size: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}", True, self.text_color)
         self.screen.blit(bs, (sx, y))
@@ -549,20 +437,9 @@ class CanvasEmulator:
         # Symmetry
         sym = self.font_medium.render(f"Symmetry: {SYMMETRY_MODES[self.canvas.symmetry_mode]}", True, self.text_color)
         self.screen.blit(sym, (sx, y))
-        y += 25
+        y += 30
         
-        # Point A status
-        if self.canvas.draw_mode in [1, 2]:
-            if self.canvas.point_a:
-                pa = self.font_small.render(f"Point A: {self.canvas.point_a}", True, (255, 150, 150))
-            else:
-                pa = self.font_small.render("Point A: Not set (Space)", True, (150, 150, 150))
-            self.screen.blit(pa, (sx, y))
-            y += 22
-        
-        y += 8
-        
-        # Undo/Redo - now shows strokes
+        # Undo/Redo
         undo_count = len(self.canvas.undo_buffer)
         redo_count = len(self.canvas.redo_buffer)
         undo_text = f"Undo: {undo_count} strokes | Redo: {redo_count} strokes"
@@ -596,8 +473,7 @@ class CanvasEmulator:
         ctrl_list = [
             "Arrows = Move cursor",
             "R/G/B = Toggle colors",
-            "Space = Brush/Eraser or Set Point",
-            "Tab = Cycle draw mode",
+            "Space = Brush/Eraser",
             "Shift+S = Cycle symmetry",
             "+/- = Brush size",
             "Z = Undo stroke, Y = Redo stroke",
@@ -618,13 +494,13 @@ class CanvasEmulator:
     
     def run(self):
         print("=" * 60)
-        print("Tiny Canvas - Full Feature Emulator")
+        print("Tiny Canvas Emulator")
         print("=" * 60)
         print("Features:")
         print("  - Brush Size: +/- keys (1x1 to 8x8)")
         print("  - Symmetry: Shift+S (Off, H-Mirror, V-Mirror, 4-Way)")
-        print("  - Draw Modes: Tab (Freehand, Line, Rectangle, Spray)")
-        print("  - Undo/Redo: Z and Y (undoes entire strokes, not pixels)")
+        print("  - Undo/Redo: Z and Y (undoes entire strokes)")
+        print("  - Color Mixing: R/G/B toggles")
         print("=" * 60)
         
         running = True

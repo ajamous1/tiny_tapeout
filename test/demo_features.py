@@ -2,12 +2,11 @@
 """
 Feature Demo - Standalone
 =========================
-Demonstrates all Tiny Canvas features without needing Verilog simulation.
+Demonstrates Tiny Canvas features without needing Verilog simulation.
 Run directly: python test/demo_features.py
 """
 
 import pygame
-import random
 import time
 
 # Colours
@@ -24,7 +23,6 @@ COLORS = {
 
 COLOR_NAMES = ["Black", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White"]
 SYMMETRY_NAMES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
-MODE_NAMES = ["Freehand", "Line", "Rectangle", "Spray"]
 
 
 class FeatureDemo:
@@ -106,19 +104,6 @@ class FeatureDemo:
         self.move_to(x0, y0, paint=False)
         self.move_to(x1, y1, paint=True)
     
-    def spray_area(self, cx, cy, count=25):
-        for _ in range(count):
-            dx = random.randint(-12, 12)
-            dy = random.randint(-12, 12)
-            px, py = cx + dx, cy + dy
-            if 0 <= px < 256 and 0 <= py < 256:
-                pixels = self.expand_brush(px, py)
-                pixels = self.apply_symmetry(pixels)
-                for ppx, ppy in pixels:
-                    if 0 <= ppx < 256 and 0 <= ppy < 256:
-                        self.canvas[ppy][ppx] = self.colour
-        self.update_display()
-    
     def update_display(self):
         self.screen.fill((25, 28, 35))
         
@@ -179,21 +164,15 @@ class FeatureDemo:
             "   V-Mirror - Vertical reflection",
             "   4-Way - All four quadrants",
             "",
-            "3. DRAW MODES",
-            "   Freehand - Paint while moving",
-            "   Line - Set two points, draw line",
-            "   Rectangle - Set corners, draw outline",
-            "   Spray - Random scatter around cursor",
-            "",
-            "4. COLOR MIXING (RGB)",
+            "3. COLOR MIXING (RGB)",
             "   Y=Red, X=Green, B=Blue",
             "   Combinations: R+G=Yellow, R+B=Magenta, etc.",
             "",
-            "5. UNDO/REDO",
+            "4. UNDO/REDO",
             "   L+R = Undo entire stroke",
             "   Select+Start = Redo stroke",
             "",
-            "6. PAINT ENABLE",
+            "5. PAINT ENABLE",
             "   Brush mode + no color = move without painting",
             "   Eraser mode = always paint black",
         ]
@@ -201,7 +180,7 @@ class FeatureDemo:
         for i, line in enumerate(features):
             color = (200, 200, 210) if line.startswith("   ") else (255, 180, 80)
             lbl = self.small_font.render(line, True, color)
-            self.screen.blit(lbl, (fx + 15, fy + 50 + i * 20))
+            self.screen.blit(lbl, (fx + 15, fy + 50 + i * 22))
         
         pygame.display.flip()
     
@@ -210,7 +189,7 @@ class FeatureDemo:
         print("Tiny Canvas - Feature Demo")
         print("=" * 60)
         print("Watch as the demo shows off all features!")
-        print("Close window or press Ctrl+C to exit")
+        print("Close window or press any key to exit")
         print("=" * 60)
         
         # Demo 1: Brush sizes with H-symmetry
@@ -261,21 +240,8 @@ class FeatureDemo:
         
         time.sleep(1)
         
-        # Demo 4: Spray paint
-        self.status = "Demo 4: Spray paint mode with 4-way symmetry"
-        self.colour = 0b001  # Blue
-        self.symmetry_mode = 3
-        self.brush_size = 0
-        self.update_display()
-        time.sleep(0.5)
-        
-        if self.running:
-            self.spray_area(90, 128, 40)
-        
-        time.sleep(1)
-        
-        # Demo 5: Large brush
-        self.status = "Demo 5: Large brush (6x6) creates thick lines"
+        # Demo 4: Large brush
+        self.status = "Demo 4: Large brush (6x6) creates thick lines"
         self.colour = 0b110  # Yellow
         self.symmetry_mode = 1  # H-mirror
         self.brush_size = 5
@@ -285,7 +251,7 @@ class FeatureDemo:
         if self.running:
             self.draw_line(70, 55, 100, 55)
         
-        self.status = "Demo complete! Close window to exit."
+        self.status = "Demo complete! Close window or press any key to exit."
         self.update_display()
         
         # Wait for close
@@ -304,4 +270,3 @@ class FeatureDemo:
 if __name__ == "__main__":
     demo = FeatureDemo()
     demo.run()
-
