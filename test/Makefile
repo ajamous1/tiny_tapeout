@@ -5,7 +5,7 @@
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v counter.v i2c_slave.v position.v gamepad_pmod.v colour.v
+PROJECT_SOURCES = project.v counter.v i2c_slave.v position.v gamepad_pmod.v colour.v brush_settings.v fill_mode.v fill_draw.v packet_generator.v undo_redo.v
 
 ifneq ($(GATES),yes)
 
