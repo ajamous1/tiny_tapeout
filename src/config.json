@@ -23,10 +23,6 @@
   "PL_RESIZER_HOLD_SLACK_MARGIN": 0.1,
   "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.05,
 
-  "//": "Routing settings to help avoid DRC violations",
-  "DRT_OPT_ITERS": 128,
-  "GRT_ADJUSTMENT": 0.25,
-
   "//": "RUN_LINTER, LINTER_INCLUDE_PDK_MODELS - Disabling the linter is not recommended!",
   "RUN_LINTER": 1,
   "LINTER_INCLUDE_PDK_MODELS": 1,
