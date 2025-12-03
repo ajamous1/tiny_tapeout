@@ -1,20 +1,20 @@
 // Draw mode controller.
-// Modes: 0=Freehand, 1=Rectangle, 2=Circle, 3=Line
+// Modes: 0=Freehand, 1=Rectangle, 2=Line
 
 module draw_mode (
     input  wire       clk,
     input  wire       rst_n,
-    input  wire       btn_mode,      // Cycles through modes (Select)
-    input  wire       btn_point,     // Sets point A or B (A button)
+    input  wire       btn_mode,
+    input  wire       btn_point,
     input  wire [7:0] x_pos,
     input  wire [7:0] y_pos,
-    output reg  [1:0] mode,          // 0=free, 1=rect, 2=circle, 3=line
+    output reg  [1:0] mode,
     output reg  [7:0] point_a_x,
     output reg  [7:0] point_a_y,
     output reg        point_a_set,
     output reg  [7:0] point_b_x,
     output reg  [7:0] point_b_y,
-    output reg        shape_trigger  // Pulse when shape should be drawn
+    output reg        shape_trigger
 );
 
     reg btn_mode_prev, btn_point_prev;
@@ -33,13 +33,16 @@ module draw_mode (
             btn_point_prev <= btn_point;
             shape_trigger <= 1'b0;
             
-            // Cycle mode on rising edge (0 -> 1 -> 2 -> 3 -> 0)
+            // Cycle mode (0 -> 1 -> 2 -> 0)
             if (btn_mode && !btn_mode_prev) begin
-                mode <= mode + 2'd1;
-                point_a_set <= 1'b0;  // Reset point on mode change
+                if (mode == 2'd2)
+                    mode <= 2'd0;
+                else
+                    mode <= mode + 2'd1;
+                point_a_set <= 1'b0;
             end
             
-            // Set point on rising edge (only in shape modes 1-3)
+            // Set point (only in shape modes)
             if (btn_point && !btn_point_prev && mode != 2'd0) begin
                 if (!point_a_set) begin
                     point_a_x <= x_pos;
@@ -56,4 +59,3 @@ module draw_mode (
     end
 
 endmodule
-

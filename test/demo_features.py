@@ -5,7 +5,6 @@ Demonstrates Tiny Canvas features: shapes, brush size, symmetry, undo.
 """
 
 import pygame
-import math
 import time
 
 COLORS = {
@@ -14,7 +13,7 @@ COLORS = {
 }
 COLOR_NAMES = ["Black", "Blue", "Green", "Cyan", "Red", "Magenta", "Yellow", "White"]
 SYMMETRY_NAMES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
-SHAPE_NAMES = ["Freehand", "Rectangle", "Circle", "Line"]
+SHAPE_NAMES = ["Freehand", "Rectangle", "Line"]
 
 
 class FeatureDemo:
@@ -122,21 +121,6 @@ class FeatureDemo:
             self.update_display()
             self.clock.tick(200)
     
-    def draw_circle(self, cx, cy, r):
-        """Draw circle outline."""
-        for i in range(64):
-            angle = i * 2 * math.pi / 64
-            self.x = int(cx + r * math.cos(angle))
-            self.y = int(cy + r * math.sin(angle))
-            self.paint_at(self.x, self.y)
-            self.update_display()
-            self.clock.tick(60)
-            
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    return
-    
     def update_display(self):
         self.screen.fill((25, 28, 35))
         
@@ -178,7 +162,7 @@ class FeatureDemo:
         self.screen.blit(self.font.render("FEATURES", True, (100, 200, 255)), (fx + 15, fy + 15))
         
         features = [
-            "", "SHAPES: Rect, Circle, Line", "BRUSH SIZE: 1x1 to 8x8",
+            "", "SHAPES: Rectangle, Line", "BRUSH SIZE: 1x1 to 8x8",
             "SYMMETRY: H/V/4-way", "UNDO/REDO: 4 levels", "COLOR: RGB mixing"
         ]
         for i, line in enumerate(features):
@@ -203,34 +187,23 @@ class FeatureDemo:
             self.draw_rect(30, 180, 80, 220)
         time.sleep(0.5)
         
-        # Demo 2: Circle with 4-way symmetry
-        self.status = "Demo 2: Circle with 4-Way symmetry"
-        self.colour = 0b010  # Green
-        self.symmetry_mode = 3
-        self.update_display()
-        time.sleep(0.5)
-        
-        if self.running:
-            self.draw_circle(90, 128, 25)
-        time.sleep(0.5)
-        
-        # Demo 3: Line with different brush sizes
-        self.status = "Demo 3: Lines with increasing brush sizes"
+        # Demo 2: Line with different brush sizes
+        self.status = "Demo 2: Lines with increasing brush sizes"
         self.colour = 0b001  # Blue
         self.symmetry_mode = 0
         
         for size in range(4):
             if not self.running: return
             self.brush_size = size
-            self.status = f"Demo 3: Line with brush size {size+1}x{size+1}"
+            self.status = f"Demo 2: Line with brush size {size+1}x{size+1}"
             self.x, self.y = 30, 60 + size * 25
             self.move_to(100, 60 + size * 25, paint=True)
             time.sleep(0.3)
         
         time.sleep(0.5)
         
-        # Demo 4: All colors
-        self.status = "Demo 4: All 7 colors"
+        # Demo 3: All colors
+        self.status = "Demo 3: All 7 colors"
         self.symmetry_mode = 2  # V-mirror
         self.brush_size = 1
         

@@ -7,7 +7,6 @@ Supports: Brush Size, Symmetry, Shapes (Rect/Circle/Line), Undo/Redo
 import pygame
 import sys
 import os
-import math
 
 # ============================================================================
 # Colour Definitions
@@ -28,7 +27,7 @@ COLOR_NAMES = {
     0b100: "Red", 0b101: "Magenta", 0b110: "Yellow", 0b111: "White"
 }
 
-DRAW_MODES = ["Freehand", "Rectangle", "Circle", "Line"]
+DRAW_MODES = ["Freehand", "Rectangle", "Line"]
 SYMMETRY_MODES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
 
 
@@ -52,7 +51,7 @@ class TinyCanvas:
         # Features
         self.brush_size = 0      # 0-7 (1x1 to 8x8)
         self.symmetry_mode = 0   # 0=off, 1=H, 2=V, 3=4-way
-        self.draw_mode = 0       # 0=free, 1=rect, 2=circle, 3=line
+        self.draw_mode = 0       # 0=free, 1=rect, 2=line
         
         # Shape point storage
         self.point_a = None
@@ -206,27 +205,6 @@ class TinyCanvas:
         self.paint_pixels(pixels, color)
         self.end_stroke()
     
-    def draw_circle(self, x0, y0, x1, y1):
-        """Draw circle outline."""
-        self.start_stroke()
-        color = self.get_color_mix()
-        pixels = []
-        
-        cx = (x0 + x1) // 2
-        cy = (y0 + y1) // 2
-        r = (abs(x1 - x0) + abs(y1 - y0)) // 4
-        
-        # Draw circle using many points
-        for i in range(64):
-            angle = i * 2 * math.pi / 64
-            px = int(cx + r * math.cos(angle))
-            py = int(cy + r * math.sin(angle))
-            pixels.extend(self.expand_brush(px, py))
-        
-        pixels = self.apply_symmetry(list(set(pixels)))
-        self.paint_pixels(pixels, color)
-        self.end_stroke()
-    
     def undo(self):
         """Undo last stroke (entire brush action)."""
         if self.undo_buffer:
@@ -260,10 +238,7 @@ class TinyCanvas:
                 if self.draw_mode == 1:  # Rectangle
                     self.draw_rect(x0, y0, x1, y1)
                     return "Rectangle drawn"
-                elif self.draw_mode == 2:  # Circle
-                    self.draw_circle(x0, y0, x1, y1)
-                    return "Circle drawn"
-                elif self.draw_mode == 3:  # Line
+                elif self.draw_mode == 2:  # Line
                     self.draw_line(x0, y0, x1, y1)
                     return "Line drawn"
         return None
@@ -401,7 +376,7 @@ class CanvasEmulator:
                 
                 # Draw mode (Tab)
                 elif event.key == pygame.K_TAB:
-                    self.canvas.draw_mode = (self.canvas.draw_mode + 1) % 4
+                    self.canvas.draw_mode = (self.canvas.draw_mode + 1) % 3
                     self.canvas.point_a = None
                     self.show_message(f"Mode: {DRAW_MODES[self.canvas.draw_mode]}")
                 
