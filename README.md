@@ -233,7 +233,6 @@ Bus start condition: while scl is high, sda goes low
 Address shifting: shift in appropriate address  
 a) correct address with r 
 
-<img width="1260" height="402" alt="image" src="https://github.com/user-attachments/assets/b61451a4-f8cd-4687-b222-3a6edd382f3a" />
 
 
 <img width="1150" height="533" alt="image" src="https://github.com/user-attachments/assets/e5d372f8-35d5-405e-90af-c88106d1945f" />
