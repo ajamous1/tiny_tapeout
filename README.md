@@ -254,36 +254,8 @@ After receiving MACK, moving to new byte
 
 The design is composed of several Verilog modules with clear separation of concerns:
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        tt_um_example (top)                       │
-├──────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
-│  │ gamepad_pmod    │──▶│  Button     │──▶│    colour        │   │
-│  │ _single         │   │  Edge       │   │    (RGB mixer)   │   │
-│  │ (controller)    │   │  Detection  │   └──────────────────┘   │
-│  └─────────────────┘   └─────────────┘            │              │
-│           │                   │                   ▼              │
-│           │            ┌──────────────┐   ┌──────────────────┐   │
-│           │            │  position    │   │  brush_settings  │   │
-│           └───────────▶│  (X/Y track) │   │  (size/symmetry) │   │
-│                        └──────────────┘   └──────────────────┘   │
-│                               │                   │              │
-│                               ▼                   ▼              │
-│                        ┌──────────────────────────────────┐      │
-│                        │       packet_generator           │      │
-│                        │  (expands brush size + symmetry) │      │
-│                        └──────────────────────────────────┘      │
-│                               │                                  │
-│           ┌───────────────────┼───────────────────┐              │
-│           ▼                   ▼                   ▼              │
-│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
-│  │   fill_mode     │   │  undo_redo  │   │    i2c_slave     │   │
-│  │   fill_draw     │   │  (4-entry)  │   │    (addr 0x64)   │   │
-│  │ (rect fill)     │   │             │   │                  │   │
-│  └─────────────────┘   └─────────────┘   └──────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
-```
+<img width="471" height="711" alt="image" src="https://github.com/user-attachments/assets/fc0e9e20-5b16-4409-b6bf-1656c5600c34" />
+
 
 ### Source Files
 
