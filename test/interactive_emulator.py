@@ -1,39 +1,25 @@
 #!/usr/bin/env python3
 """
 Tiny Canvas Emulator
-Supports: Brush Size, Symmetry, Undo/Redo
-Freehand drawing only.
+Supports: Brush Size, Symmetry, Fill Rectangle, Undo/Redo
 """
 
 import pygame
 import sys
 import os
 
-# ============================================================================
-# Colour Definitions
-# ============================================================================
 COLORS = {
-    0b000: (0, 0, 0),       # Black
-    0b001: (0, 0, 255),     # Blue
-    0b010: (0, 255, 0),     # Green
-    0b011: (0, 255, 255),   # Cyan
-    0b100: (255, 0, 0),     # Red
-    0b101: (255, 0, 255),   # Magenta
-    0b110: (255, 255, 0),   # Yellow
-    0b111: (255, 255, 255), # White
+    0b000: (0, 0, 0), 0b001: (0, 0, 255), 0b010: (0, 255, 0), 0b011: (0, 255, 255),
+    0b100: (255, 0, 0), 0b101: (255, 0, 255), 0b110: (255, 255, 0), 0b111: (255, 255, 255),
 }
-
 COLOR_NAMES = {
     0b000: "Black", 0b001: "Blue", 0b010: "Green", 0b011: "Cyan",
     0b100: "Red", 0b101: "Magenta", 0b110: "Yellow", 0b111: "White"
 }
-
 SYMMETRY_MODES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
 
 
 class TinyCanvas:
-    """Emulates the Tiny Canvas hardware."""
-    
     def __init__(self):
         self.grid_size = 256
         self.canvas = [[0 for _ in range(self.grid_size)] for _ in range(self.grid_size)]
@@ -48,6 +34,8 @@ class TinyCanvas:
         
         self.brush_size = 0
         self.symmetry_mode = 0
+        self.fill_mode = False
+        self.fill_corner_a = None
         
         self.undo_buffer = []
         self.redo_buffer = []
@@ -133,6 +121,41 @@ class TinyCanvas:
         self.i2c_y = y
         self.i2c_status = self.get_status()
     
+    def fill_rect(self, x0, y0, x1, y1):
+        """Fill a rectangular region."""
+        self.start_stroke()
+        color = self.get_color_mix()
+        
+        min_x, max_x = min(x0, x1), max(x0, x1)
+        min_y, max_y = min(y0, y1), max(y0, y1)
+        
+        pixels = []
+        for y in range(min_y, max_y + 1):
+            for x in range(min_x, max_x + 1):
+                expanded = self.expand_brush(x, y)
+                pixels.extend(expanded)
+        
+        pixels = self.apply_symmetry(list(set(pixels)))
+        self.paint_pixels(pixels, color)
+        self.end_stroke()
+        
+        self.i2c_x = x1
+        self.i2c_y = y1
+        self.i2c_status = self.get_status()
+        return (max_x - min_x + 1) * (max_y - min_y + 1)
+    
+    def set_fill_corner(self):
+        """Set corner for fill rectangle."""
+        if self.fill_corner_a is None:
+            self.fill_corner_a = (self.cursor_x, self.cursor_y)
+            return "Corner A set"
+        else:
+            x0, y0 = self.fill_corner_a
+            x1, y1 = self.cursor_x, self.cursor_y
+            self.fill_corner_a = None
+            count = self.fill_rect(x0, y0, x1, y1)
+            return f"Filled {count} pixels"
+    
     def undo(self):
         if self.undo_buffer:
             stroke = self.undo_buffer.pop()
@@ -171,7 +194,8 @@ class TinyCanvas:
         
         if moved:
             self.last_move_time = current_time
-            if self.should_paint():
+            # Only paint in freehand mode (not fill mode)
+            if not self.fill_mode and self.should_paint():
                 self.paint_at(self.cursor_x, self.cursor_y)
         
         return moved
@@ -181,6 +205,7 @@ class TinyCanvas:
         self.undo_buffer.clear()
         self.redo_buffer.clear()
         self.current_stroke = []
+        self.fill_corner_a = None
 
 
 class CanvasEmulator:
@@ -195,7 +220,7 @@ class CanvasEmulator:
         pygame.display.set_caption("Tiny Canvas Emulator")
         
         self.grid_size = 256
-        self.sidebar_width = 350
+        self.sidebar_width = 380
         self.recalculate_layout()
         
         self.bg_color = (25, 28, 38)
@@ -251,9 +276,23 @@ class CanvasEmulator:
                 elif event.key == pygame.K_b:
                     self.canvas.sw_blue = not self.canvas.sw_blue
                     self.show_message(f"Blue {'ON' if self.canvas.sw_blue else 'OFF'}")
+                
                 elif event.key == pygame.K_SPACE:
-                    self.canvas.brush_mode = not self.canvas.brush_mode
-                    self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
+                    if self.canvas.fill_mode:
+                        # Set fill corner
+                        result = self.canvas.set_fill_corner()
+                        self.show_message(result)
+                    else:
+                        # Toggle brush/eraser
+                        self.canvas.brush_mode = not self.canvas.brush_mode
+                        self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
+                
+                elif event.key == pygame.K_TAB:
+                    # Toggle fill mode
+                    self.canvas.fill_mode = not self.canvas.fill_mode
+                    self.canvas.fill_corner_a = None
+                    self.show_message(f"Fill Mode: {'ON' if self.canvas.fill_mode else 'OFF'}")
+                
                 elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                     if self.canvas.brush_size > 0:
                         self.canvas.brush_size -= 1
@@ -262,31 +301,37 @@ class CanvasEmulator:
                     if self.canvas.brush_size < 7:
                         self.canvas.brush_size += 1
                         self.show_message(f"Brush: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}")
+                
                 elif event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_SHIFT:
                     self.canvas.symmetry_mode = (self.canvas.symmetry_mode + 1) % 4
                     self.show_message(f"Symmetry: {SYMMETRY_MODES[self.canvas.symmetry_mode]}")
+                
                 elif event.key in (pygame.K_z, pygame.K_u):
                     count = self.canvas.undo()
                     self.show_message(f"Undo ({count} pixels)" if count else "Nothing to undo")
                 elif event.key == pygame.K_y:
                     count = self.canvas.redo()
                     self.show_message(f"Redo ({count} pixels)" if count else "Nothing to redo")
+                
                 elif event.key == pygame.K_c:
                     self.canvas.clear()
                     self.show_message("Canvas cleared")
+                
                 elif event.key in (pygame.K_ESCAPE, pygame.K_q):
                     return False
         
         keys = pygame.key.get_pressed()
         any_movement = keys[pygame.K_UP] or keys[pygame.K_DOWN] or keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]
         
-        if any_movement and not self.in_stroke:
-            self.canvas.start_stroke()
-            self.in_stroke = True
-        
-        if not any_movement and self.in_stroke:
-            self.canvas.end_stroke()
-            self.in_stroke = False
+        # Stroke tracking only in freehand mode
+        if not self.canvas.fill_mode:
+            if any_movement and not self.in_stroke:
+                self.canvas.start_stroke()
+                self.in_stroke = True
+            
+            if not any_movement and self.in_stroke:
+                self.canvas.end_stroke()
+                self.in_stroke = False
         
         if keys[pygame.K_UP]:
             self.canvas.update_cursor(current_time, 'up')
@@ -303,9 +348,9 @@ class CanvasEmulator:
         title = self.font_title.render("TINY CANVAS EMULATOR", True, self.accent_color)
         self.screen.blit(title, (self.window_width // 2 - title.get_width() // 2, 15))
         
-        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Eraser | Shift+S:Sym | +/-:Size | Z:Undo | Y:Redo"
+        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Fill | Tab:Fill Mode | Shift+S:Sym | +/-:Size | Z:Undo"
         self.screen.blit(self.font_small.render(hint, True, (120, 120, 130)),
-                        (self.window_width // 2 - 280, 45))
+                        (self.window_width // 2 - 300, 45))
     
     def draw_canvas(self):
         for cy in range(self.grid_size):
@@ -320,12 +365,33 @@ class CanvasEmulator:
                         (self.canvas_x - 2, self.canvas_y - 2,
                          self.canvas_width + 4, self.canvas_height + 4), 2)
         
+        # Cursor
         cursor_size = max(self.cell_size * (self.canvas.brush_size + 2), 8)
         screen_y = self.grid_size - 1 - self.canvas.cursor_y
         cx = self.canvas_x + self.canvas.cursor_x * self.cell_size + self.cell_size // 2
         cy = self.canvas_y + screen_y * self.cell_size + self.cell_size // 2
-        pygame.draw.rect(self.screen, (255, 255, 0),
+        cursor_color = (255, 100, 100) if self.canvas.fill_mode else (255, 255, 0)
+        pygame.draw.rect(self.screen, cursor_color,
                         (cx - cursor_size // 2, cy - cursor_size // 2, cursor_size, cursor_size), 2)
+        
+        # Fill corner A marker
+        if self.canvas.fill_corner_a:
+            ax, ay = self.canvas.fill_corner_a
+            screen_ay = self.grid_size - 1 - ay
+            px = self.canvas_x + ax * self.cell_size + self.cell_size // 2
+            py = self.canvas_y + screen_ay * self.cell_size + self.cell_size // 2
+            pygame.draw.circle(self.screen, (255, 100, 100), (px, py), 8, 2)
+            
+            # Preview rectangle
+            bx, by = self.canvas.cursor_x, self.canvas.cursor_y
+            min_x, max_x = min(ax, bx), max(ax, bx)
+            min_y, max_y = min(ay, by), max(ay, by)
+            
+            rx = self.canvas_x + min_x * self.cell_size
+            ry = self.canvas_y + (self.grid_size - 1 - max_y) * self.cell_size
+            rw = (max_x - min_x + 1) * self.cell_size
+            rh = (max_y - min_y + 1) * self.cell_size
+            pygame.draw.rect(self.screen, (255, 100, 100, 128), (rx, ry, rw, rh), 1)
     
     def draw_sidebar(self):
         sx = self.window_width - self.sidebar_width + 15
@@ -343,8 +409,20 @@ class CanvasEmulator:
         
         mode_text = "BRUSH" if self.canvas.brush_mode else "ERASER"
         mode_color = (80, 255, 120) if self.canvas.brush_mode else (255, 100, 100)
-        self.screen.blit(self.font_medium.render(f"Mode: {mode_text}", True, mode_color), (sx + 70, y + 35))
+        self.screen.blit(self.font_medium.render(f"Paint: {mode_text}", True, mode_color), (sx + 70, y + 35))
         y += 75
+        
+        # Fill mode indicator
+        fill_text = "FILL MODE ON" if self.canvas.fill_mode else "Fill Mode Off"
+        fill_color = (255, 100, 100) if self.canvas.fill_mode else (100, 100, 110)
+        self.screen.blit(self.font_medium.render(fill_text, True, fill_color), (sx, y))
+        y += 25
+        
+        if self.canvas.fill_mode and self.canvas.fill_corner_a:
+            corner_text = f"Corner A: {self.canvas.fill_corner_a}"
+            self.screen.blit(self.font_small.render(corner_text, True, (255, 150, 150)), (sx, y))
+            y += 20
+        y += 5
         
         for label, state, clr in [("R", self.canvas.sw_red, (255, 60, 60)),
                                    ("G", self.canvas.sw_green, (60, 255, 60)),
@@ -372,6 +450,15 @@ class CanvasEmulator:
                      f"Status: 0x{self.canvas.i2c_status:02X}", f"Packets: {self.canvas.i2c_count}"]:
             self.screen.blit(self.font_small.render(info, True, (180, 180, 190)), (sx + 10, y))
             y += 18
+        
+        y += 15
+        self.screen.blit(self.font_medium.render("Controls:", True, self.text_color), (sx, y))
+        y += 22
+        for ctrl in ["Arrows = Move", "R/G/B = Colors", "Space = Brush/Fill corner",
+                     "Tab = Toggle fill mode", "+/- = Brush size", "Shift+S = Symmetry",
+                     "Z = Undo, Y = Redo", "C = Clear"]:
+            self.screen.blit(self.font_small.render(ctrl, True, (140, 140, 150)), (sx, y))
+            y += 17
     
     def draw_message(self):
         if self.message and pygame.time.get_ticks() - self.message_time < 2000:
@@ -385,7 +472,8 @@ class CanvasEmulator:
         print("=" * 50)
         print("Tiny Canvas Emulator")
         print("=" * 50)
-        print("Features: Brush Size, Symmetry, Undo/Redo")
+        print("Features: Brush Size, Symmetry, Fill Rectangle, Undo/Redo")
+        print("Press Tab to toggle Fill Mode")
         print("=" * 50)
         
         running = True

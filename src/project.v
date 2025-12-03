@@ -1,6 +1,6 @@
 /*
  * Tiny Canvas - MS Paint Style Drawing Tool
- * Gamepad-controlled pixel art with brush sizes, symmetry, and undo.
+ * Gamepad-controlled pixel art with brush sizes, symmetry, fill, and undo.
  */
 
 `default_nettype none
@@ -117,16 +117,62 @@ module tt_um_example (
     );
 
     // ================================================================
+    // Fill Mode (Select = toggle, A = set corner)
+    // ================================================================
+    wire fill_active;
+    wire [7:0] corner_a_x, corner_a_y, corner_b_x, corner_b_y;
+    wire corner_a_set, fill_trigger;
+
+    fill_mode fill_mode_inst (
+        .clk(clk), .rst_n(rst_n),
+        .btn_mode(gp_select),
+        .btn_point(gp_a),
+        .x_pos(x_pos), .y_pos(y_pos),
+        .fill_active(fill_active),
+        .corner_a_x(corner_a_x), .corner_a_y(corner_a_y),
+        .corner_a_set(corner_a_set),
+        .corner_b_x(corner_b_x), .corner_b_y(corner_b_y),
+        .fill_trigger(fill_trigger)
+    );
+
+    // ================================================================
+    // Fill Drawing (filled rectangle)
+    // ================================================================
+    wire [7:0] fill_x, fill_y;
+    wire fill_valid, fill_busy, fill_done;
+
+    fill_draw fill_draw_inst (
+        .clk(clk), .rst_n(rst_n),
+        .start(fill_trigger),
+        .x0(corner_a_x), .y0(corner_a_y),
+        .x1(corner_b_x), .y1(corner_b_y),
+        .x_out(fill_x), .y_out(fill_y),
+        .pixel_valid(fill_valid),
+        .busy(fill_busy),
+        .done(fill_done)
+    );
+
+    // ================================================================
+    // Pixel Source Selection
+    // ================================================================
+    // Freehand: when moving and paint enabled and not in fill mode
+    wire freehand_trigger = movement_edge && paint_enable && !fill_active;
+    
+    // Select pixel source: fill operation or cursor position
+    wire [7:0] pixel_x = fill_busy ? fill_x : x_pos;
+    wire [7:0] pixel_y = fill_busy ? fill_y : y_pos;
+    wire pixel_trigger = freehand_trigger || fill_valid;
+
+    // ================================================================
     // Packet Generator (expands brush size + symmetry)
     // ================================================================
-    wire draw_trigger = movement_edge && paint_enable;
     wire [7:0] pkt_x, pkt_y;
     wire pkt_valid, pkt_busy;
 
     packet_generator pkt_inst (
         .clk(clk), .rst_n(rst_n),
-        .trigger(draw_trigger),
-        .x_in(x_pos), .y_in(y_pos),
+        .trigger(pixel_trigger),
+        .x_in(pixel_x), .y_in(pixel_y),
         .brush_size(brush_size),
         .symmetry_mode(symmetry_mode),
         .x_out(pkt_x), .y_out(pkt_y),
@@ -201,7 +247,7 @@ module tt_um_example (
     // Unused Signals
     // ================================================================
     wire _unused = &{ena, sda_out_int, ui_in[7:3], uio_in[7:3], uio_in[0],
-                     gp_is_present, gp_a, gp_select, pkt_busy,
+                     gp_is_present, pkt_busy, fill_busy, fill_done, corner_a_set,
                      undo_restore, undo_x, undo_y, undo_color, can_undo, can_redo};
 
 endmodule
