@@ -1,6 +1,6 @@
 /*
  * Tiny Canvas - MS Paint Style Drawing Tool
- * Gamepad-controlled pixel art with brush sizes, symmetry, shapes, and undo.
+ * Gamepad-controlled pixel art with brush sizes, symmetry, and undo.
  */
 
 `default_nettype none
@@ -117,60 +117,16 @@ module tt_um_example (
     );
 
     // ================================================================
-    // Draw Mode (Select = cycle, A = set point)
-    // ================================================================
-    wire [1:0] draw_mode;
-    wire [7:0] point_a_x, point_a_y, point_b_x, point_b_y;
-    wire point_a_set, shape_trigger;
-
-    draw_mode mode_inst (
-        .clk(clk), .rst_n(rst_n),
-        .btn_mode(gp_select),
-        .btn_point(gp_a),
-        .x_pos(x_pos), .y_pos(y_pos),
-        .mode(draw_mode),
-        .point_a_x(point_a_x), .point_a_y(point_a_y),
-        .point_a_set(point_a_set),
-        .point_b_x(point_b_x), .point_b_y(point_b_y),
-        .shape_trigger(shape_trigger)
-    );
-
-    // ================================================================
-    // Shape Drawing (Rectangle, Circle, Line)
-    // ================================================================
-    wire [7:0] shape_x, shape_y;
-    wire shape_valid, shape_busy, shape_done;
-
-    shape_draw shape_inst (
-        .clk(clk), .rst_n(rst_n),
-        .start(shape_trigger),
-        .shape(draw_mode),
-        .x0(point_a_x), .y0(point_a_y),
-        .x1(point_b_x), .y1(point_b_y),
-        .x_out(shape_x), .y_out(shape_y),
-        .pixel_valid(shape_valid),
-        .busy(shape_busy),
-        .done(shape_done)
-    );
-
-    // ================================================================
-    // Pixel Mux (freehand or shape)
-    // ================================================================
-    wire freehand_trigger = movement_edge && paint_enable && (draw_mode == 2'd0);
-    wire [7:0] pixel_x = shape_busy ? shape_x : x_pos;
-    wire [7:0] pixel_y = shape_busy ? shape_y : y_pos;
-    wire pixel_trigger = freehand_trigger || shape_valid;
-
-    // ================================================================
     // Packet Generator (expands brush size + symmetry)
     // ================================================================
+    wire draw_trigger = movement_edge && paint_enable;
     wire [7:0] pkt_x, pkt_y;
     wire pkt_valid, pkt_busy;
 
     packet_generator pkt_inst (
         .clk(clk), .rst_n(rst_n),
-        .trigger(pixel_trigger),
-        .x_in(pixel_x), .y_in(pixel_y),
+        .trigger(draw_trigger),
+        .x_in(x_pos), .y_in(y_pos),
         .brush_size(brush_size),
         .symmetry_mode(symmetry_mode),
         .x_out(pkt_x), .y_out(pkt_y),
@@ -245,7 +201,7 @@ module tt_um_example (
     // Unused Signals
     // ================================================================
     wire _unused = &{ena, sda_out_int, ui_in[7:3], uio_in[7:3], uio_in[0],
-                     gp_is_present, pkt_busy, shape_busy, shape_done, point_a_set,
+                     gp_is_present, gp_a, gp_select, pkt_busy,
                      undo_restore, undo_x, undo_y, undo_color, can_undo, can_redo};
 
 endmodule
