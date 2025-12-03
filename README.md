@@ -5,6 +5,8 @@
 **Gamepad-controlled pixel art with brush sizes, symmetry, fill rectangle, and undo/redo**
 
 Released as free and open source under the terms of the Apache License 2.0
+<img width="1610" height="1116" alt="image" src="https://github.com/user-attachments/assets/6f0cdea9-827d-4fc2-8ff3-7de0688c1386" />
+
 
 ---
 
@@ -188,7 +190,7 @@ The hardware maintains a 4-operation circular buffer for undo/redo:
 | `uio[2]` | `SCL` | Input | I2C clock line |
 | Others | — | — | Unused |
 
-**[IMAGE: pinout_diagram.png - Visual pinout diagram showing connections]**
+
 
 ---
 
@@ -389,7 +391,7 @@ Key settings in `src/config.json`:
 2. Connect I2C lines (SDA to `uio[1]`, SCL to `uio[2]`)
 3. Connect an I2C master (e.g., RP2040 on the demoboard)
 
-**[IMAGE: demoboard_connection.jpg - Photo showing PMOD and I2C connections]**
+
 
 ### Reading from MicroPython
 
