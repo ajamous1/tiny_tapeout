@@ -14,7 +14,7 @@ module fill_draw (
     output reg        done
 );
 
-    reg [7:0] min_x, max_x, min_y, max_y;
+    reg [7:0] min_x, max_x, max_y;
     reg [7:0] curr_x, curr_y;
     reg [1:0] state;
     
@@ -27,7 +27,7 @@ module fill_draw (
             done <= 1'b0;
             pixel_valid <= 1'b0;
             min_x <= 8'd0; max_x <= 8'd0;
-            min_y <= 8'd0; max_y <= 8'd0;
+            max_y <= 8'd0;
             curr_x <= 8'd0; curr_y <= 8'd0;
             x_out <= 8'd0; y_out <= 8'd0;
         end else begin
@@ -47,7 +47,6 @@ module fill_draw (
                     // Calculate bounds
                     min_x <= (x0 < x1) ? x0 : x1;
                     max_x <= (x0 < x1) ? x1 : x0;
-                    min_y <= (y0 < y1) ? y0 : y1;
                     max_y <= (y0 < y1) ? y1 : y0;
                     curr_x <= (x0 < x1) ? x0 : x1;
                     curr_y <= (y0 < y1) ? y0 : y1;
