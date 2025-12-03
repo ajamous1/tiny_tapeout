@@ -38,7 +38,8 @@ The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 
 
 Tiny Canvas uses a single SNES-compatible controller. Here's the complete button mapping:
 
-**[IMAGE: controller_mapping.png - Labeled diagram of SNES controller with button functions]**
+<img width="1006" height="499" alt="image" src="https://github.com/user-attachments/assets/381e32aa-1de0-4129-a3a5-2886950246ba" />
+
 
 ### D-Pad (Movement)
 | Button | Function |
@@ -223,11 +224,29 @@ Bit 7   Bit 6   Bit 5   Bit 4   Bit 3   Bit 2   Bit 1   Bit 0
 
 ### Example I2C Transaction
 
-```
-START → 0xC9 (addr 0x64 + read) → ACK → [X] → ACK → [Y] → ACK → [Status] → NACK → STOP
-```
+<img width="1286" height="264" alt="image" src="https://github.com/user-attachments/assets/95174702-7c3a-4ba0-9174-d0246be59bdd" />
+Bus start condition: while scl is high, sda goes low 
 
-**[IMAGE: i2c_waveform.png - Logic analyzer capture showing I2C read transaction]**
+
+
+
+<img width="1262" height="406" alt="image" src="https://github.com/user-attachments/assets/6e969792-660c-4812-94f1-e1a0a36aed49" />
+Address shifting: shift in appropriate address  
+a) correct address with r 
+
+
+
+<img width="1150" height="533" alt="image" src="https://github.com/user-attachments/assets/e5d372f8-35d5-405e-90af-c88106d1945f" />
+Acknowledge bit from slave 
+
+
+TX stage 
+At cursor, x-pos is loaded into shreg and shifted out MSB 
+<img width="1113" height="510" alt="image" src="https://github.com/user-attachments/assets/47038542-d11f-4653-99bb-1988983d62b1" />
+
+After receiving MACK, moving to new byte 
+
+
 
 ---
 
