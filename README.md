@@ -76,7 +76,8 @@ Tiny Canvas uses a single SNES-compatible controller. Here's the complete button
 
 Colors are created using additive RGB mixing, similar to how light works:
 
-**[IMAGE: color_mixing_diagram.png - Venn diagram showing RGB color combinations]**
+<img width="500" height="488" alt="image" src="https://github.com/user-attachments/assets/e148099c-a6f9-4659-8cad-7923d8f19a34" />
+
 
 | R | G | B | Result Color | Binary |
 |---|---|---|--------------|--------|
