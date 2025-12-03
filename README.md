@@ -5,6 +5,8 @@
 **Gamepad-controlled pixel art with brush sizes, symmetry, fill rectangle, and undo/redo**
 
 Released as free and open source under the terms of the Apache License 2.0
+<img width="1610" height="1116" alt="image" src="https://github.com/user-attachments/assets/6f0cdea9-827d-4fc2-8ff3-7de0688c1386" />
+
 
 ---
 
@@ -189,7 +191,7 @@ The hardware maintains a 4-operation circular buffer for undo/redo:
 | `uio[2]` | `SCL` | Input | I2C clock line |
 | Others | — | — | Unused |
 
-**[IMAGE: pinout_diagram.png - Visual pinout diagram showing connections]**
+
 
 ---
 
@@ -255,36 +257,8 @@ After receiving MACK, moving to new byte
 
 The design is composed of several Verilog modules with clear separation of concerns:
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        tt_um_example (top)                       │
-├──────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
-│  │ gamepad_pmod    │──▶│  Button     │──▶│    colour        │   │
-│  │ _single         │   │  Edge       │   │    (RGB mixer)   │   │
-│  │ (controller)    │   │  Detection  │   └──────────────────┘   │
-│  └─────────────────┘   └─────────────┘            │              │
-│           │                   │                   ▼              │
-│           │            ┌──────────────┐   ┌──────────────────┐   │
-│           │            │  position    │   │  brush_settings  │   │
-│           └───────────▶│  (X/Y track) │   │  (size/symmetry) │   │
-│                        └──────────────┘   └──────────────────┘   │
-│                               │                   │              │
-│                               ▼                   ▼              │
-│                        ┌──────────────────────────────────┐      │
-│                        │       packet_generator           │      │
-│                        │  (expands brush size + symmetry) │      │
-│                        └──────────────────────────────────┘      │
-│                               │                                  │
-│           ┌───────────────────┼───────────────────┐              │
-│           ▼                   ▼                   ▼              │
-│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
-│  │   fill_mode     │   │  undo_redo  │   │    i2c_slave     │   │
-│  │   fill_draw     │   │  (4-entry)  │   │    (addr 0x64)   │   │
-│  │ (rect fill)     │   │             │   │                  │   │
-│  └─────────────────┘   └─────────────┘   └──────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
-```
+<img width="471" height="711" alt="image" src="https://github.com/user-attachments/assets/fc0e9e20-5b16-4409-b6bf-1656c5600c34" />
+
 
 ### Source Files
 
@@ -418,7 +392,7 @@ Key settings in `src/config.json`:
 2. Connect I2C lines (SDA to `uio[1]`, SCL to `uio[2]`)
 3. Connect an I2C master (e.g., RP2040 on the demoboard)
 
-**[IMAGE: demoboard_connection.jpg - Photo showing PMOD and I2C connections]**
+
 
 ### Reading from MicroPython
 
