@@ -1,41 +1,461 @@
-![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
+# Tiny Canvas
 
-# Tiny Tapeout Verilog Project Template
+### MS Paint-Style Drawing Tool for Tiny Tapeout
 
-- [Read the documentation for project](docs/info.md)
+**Gamepad-controlled pixel art with brush sizes, symmetry, fill rectangle, and undo/redo**
 
-## What is Tiny Tapeout?
+Released as free and open source under the terms of the Apache License 2.0
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+---
 
-To learn more and get started, visit https://tinytapeout.com.
+## Overview
 
-## Set up your Verilog project
+Tiny Canvas is a hardware implementation of an MS Paint-style drawing application designed for the Tiny Tapeout ASIC project. It interfaces with a SNES-compatible gamepad controller (via the [Gamepad PMOD](https://github.com/psychogenic/gamepad_pmod)) and communicates canvas state over I2C to a host device.
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+**[IMAGE: tiny_canvas_demo.png - Screenshot of the interactive emulator showing the canvas, controller, and I2C panel]**
 
-The GitHub action will automatically build the ASIC files using [OpenLane](https://www.zerotoasiccourse.com/terminology/openlane/).
+The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 87% utilization on the SKY130 process.
 
-## Enable GitHub actions to build the results page
+---
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+## Features
 
-## Resources
+| Feature | Description |
+|---------|-------------|
+| **RGB Color Mixing** | Additive color mixing using Y/X/B buttons to toggle R/G/B channels |
+| **8 Colors** | Black, Red, Green, Blue, Yellow, Magenta, Cyan, White |
+| **Variable Brush Size** | 1×1 to 8×8 pixel brushes (L/R shoulder buttons) |
+| **Symmetry Modes** | Off, Horizontal mirror, Vertical mirror, 4-way symmetry |
+| **Fill Rectangle** | Define two corners and fill the area with current color |
+| **Undo/Redo** | 4-operation history buffer |
+| **I2C Output** | Stream canvas updates to host at address `0x64` |
+| **Smart Paint Mode** | No color selected = move without painting |
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+---
 
-## What next?
+## Controller Button Mapping
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
+Tiny Canvas uses a single SNES-compatible controller. Here's the complete button mapping:
+
+**[IMAGE: controller_mapping.png - Labeled diagram of SNES controller with button functions]**
+
+### D-Pad (Movement)
+| Button | Function |
+|--------|----------|
+| **↑** Up | Move cursor up |
+| **↓** Down | Move cursor down |
+| **←** Left | Move cursor left |
+| **→** Right | Move cursor right |
+
+### Face Buttons (Color Controls)
+| Button | Function | Toggle |
+|--------|----------|--------|
+| **Y** | Toggle Red channel | Yes |
+| **X** | Toggle Green channel | Yes |
+| **B** | Toggle Blue channel | Yes |
+| **A** | Set fill corner (in Fill mode) | — |
+
+### Shoulder & System Buttons
+| Button | Function |
+|--------|----------|
+| **L** | Decrease brush size |
+| **R** | Increase brush size |
+| **Select** | Toggle Fill Rectangle mode |
+| **Start** | Cycle symmetry mode |
+
+### Button Combinations
+| Combo | Function |
+|-------|----------|
+| **L + R** (together) | Undo last operation |
+| **Select + Start** (together) | Redo last undone operation |
+
+---
+
+## Color Mixing
+
+Colors are created using additive RGB mixing, similar to how light works:
+
+**[IMAGE: color_mixing_diagram.png - Venn diagram showing RGB color combinations]**
+
+| R | G | B | Result Color | Binary |
+|---|---|---|--------------|--------|
+| 0 | 0 | 0 | Black | `000` |
+| 1 | 0 | 0 | Red | `100` |
+| 0 | 1 | 0 | Green | `010` |
+| 0 | 0 | 1 | Blue | `001` |
+| 1 | 1 | 0 | Yellow | `110` |
+| 1 | 0 | 1 | Magenta | `101` |
+| 0 | 1 | 1 | Cyan | `011` |
+| 1 | 1 | 1 | White | `111` |
+
+### Smart Paint Behavior
+
+- **Brush mode + RGB=000**: Cursor moves but does NOT paint (allows repositioning)
+- **Brush mode + RGB≠000**: Cursor paints the mixed color
+- **Eraser mode**: Not currently exposed via buttons (reserved for future use)
+
+---
+
+## Brush Settings
+
+### Brush Size
+Adjustable from 1×1 to 8×8 pixels using the shoulder buttons:
+
+| Size Value | Brush Dimensions |
+|------------|------------------|
+| 0 | 1×1 |
+| 1 | 2×2 |
+| 2 | 3×3 |
+| 3 | 4×4 |
+| 4 | 5×5 |
+| 5 | 6×6 |
+| 6 | 7×7 |
+| 7 | 8×8 |
+
+### Symmetry Modes
+Cycle through modes using the **Start** button:
+
+| Mode | Value | Description |
+|------|-------|-------------|
+| Off | `00` | Normal drawing |
+| Horizontal | `01` | Mirror across vertical center axis |
+| Vertical | `10` | Mirror across horizontal center axis |
+| 4-Way | `11` | Mirror across both axes |
+
+**[IMAGE: symmetry_modes.png - Visual example of each symmetry mode drawing a line]**
+
+---
+
+## Fill Rectangle Mode
+
+Fill Rectangle allows you to fill a rectangular area with the current color:
+
+1. Press **Select** to enter Fill mode
+2. Move cursor to first corner
+3. Press **A** to set Corner A
+4. Move cursor to opposite corner
+5. Press **A** to set Corner B and execute fill
+
+**[IMAGE: fill_rectangle_demo.gif - Animation showing the fill rectangle workflow]**
+
+The fill operation generates pixels row-by-row and streams them over I2C.
+
+---
+
+## Undo/Redo
+
+The hardware maintains a 4-operation circular buffer for undo/redo:
+
+- **L + R** (press together): Undo the last paint operation
+- **Select + Start** (press together): Redo the last undone operation
+
+> **Note**: Due to hardware memory constraints, the Verilog implementation stores individual pixels. The Python emulator implements stroke-based undo for a better user experience.
+
+---
+
+## Hardware Interface
+
+### Pinout
+
+#### Inputs (`ui_in[7:0]`)
+| Pin | Name | Description |
+|-----|------|-------------|
+| `ui[0]` | `pmod_data` | Gamepad PMOD data line |
+| `ui[1]` | `pmod_clk` | Gamepad PMOD clock |
+| `ui[2]` | `pmod_latch` | Gamepad PMOD latch |
+| `ui[3:7]` | — | Unused |
+
+#### Outputs (`uo_out[7:0]`)
+| Pin | Name | Description |
+|-----|------|-------------|
+| `uo[0:2]` | `i2c_state` | I2C state machine debug |
+| `uo[3:7]` | — | Unused |
+
+#### Bidirectional (`uio[7:0]`)
+| Pin | Name | Direction | Description |
+|-----|------|-----------|-------------|
+| `uio[1]` | `SDA` | Bidir | I2C data line |
+| `uio[2]` | `SCL` | Input | I2C clock line |
+| Others | — | — | Unused |
+
+**[IMAGE: pinout_diagram.png - Visual pinout diagram showing connections]**
+
+---
+
+## I2C Protocol
+
+Tiny Canvas operates as an I2C slave at address **`0x64`** (7-bit: `1100100`).
+
+### Reading Canvas State
+
+Perform an I2C read of 3 bytes to get the current pixel data:
+
+| Byte | Content | Description |
+|------|---------|-------------|
+| 0 | `X Position` | 0-255, cursor X coordinate |
+| 1 | `Y Position` | 0-255, cursor Y coordinate |
+| 2 | `Status` | Packed status byte |
+
+### Status Byte Format
+
+```
+Bit 7   Bit 6   Bit 5   Bit 4   Bit 3   Bit 2   Bit 1   Bit 0
+┌───────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┐
+│  UP   │ DOWN  │ LEFT  │ RIGHT │ BRUSH │   R   │   G   │   B   │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘
+  D-Pad state (bits 7-4)          Mode    Color (bits 2-0)
+```
+
+| Bits | Field | Description |
+|------|-------|-------------|
+| `[7:4]` | D-Pad | Current direction buttons pressed |
+| `[3]` | Brush Mode | 1 = Brush, 0 = Eraser |
+| `[2:0]` | Color | RGB color value (see color mixing table) |
+
+### Example I2C Transaction
+
+```
+START → 0xC9 (addr 0x64 + read) → ACK → [X] → ACK → [Y] → ACK → [Status] → NACK → STOP
+```
+
+**[IMAGE: i2c_waveform.png - Logic analyzer capture showing I2C read transaction]**
+
+---
+
+## Module Architecture
+
+The design is composed of several Verilog modules with clear separation of concerns:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        tt_um_example (top)                       │
+├──────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
+│  │ gamepad_pmod    │──▶│  Button     │──▶│    colour        │   │
+│  │ _single         │   │  Edge       │   │    (RGB mixer)   │   │
+│  │ (controller)    │   │  Detection  │   └──────────────────┘   │
+│  └─────────────────┘   └─────────────┘            │              │
+│           │                   │                   ▼              │
+│           │            ┌──────────────┐   ┌──────────────────┐   │
+│           │            │  position    │   │  brush_settings  │   │
+│           └───────────▶│  (X/Y track) │   │  (size/symmetry) │   │
+│                        └──────────────┘   └──────────────────┘   │
+│                               │                   │              │
+│                               ▼                   ▼              │
+│                        ┌──────────────────────────────────┐      │
+│                        │       packet_generator           │      │
+│                        │  (expands brush size + symmetry) │      │
+│                        └──────────────────────────────────┘      │
+│                               │                                  │
+│           ┌───────────────────┼───────────────────┐              │
+│           ▼                   ▼                   ▼              │
+│  ┌─────────────────┐   ┌─────────────┐   ┌──────────────────┐   │
+│  │   fill_mode     │   │  undo_redo  │   │    i2c_slave     │   │
+│  │   fill_draw     │   │  (4-entry)  │   │    (addr 0x64)   │   │
+│  │ (rect fill)     │   │             │   │                  │   │
+│  └─────────────────┘   └─────────────┘   └──────────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Source Files
+
+| File | Description |
+|------|-------------|
+| `project.v` | Top-level module, button logic, signal routing |
+| `gamepad_pmod.v` | SNES controller protocol decoder |
+| `colour.v` | RGB color mixing and paint enable logic |
+| `position.v` | Cursor X/Y position tracker |
+| `brush_settings.v` | Brush size and symmetry mode control |
+| `packet_generator.v` | Expands single pixels to brush size with symmetry |
+| `fill_mode.v` | Fill rectangle mode state machine |
+| `fill_draw.v` | Generates pixels for filled rectangle |
+| `undo_redo.v` | 4-entry circular buffer for undo/redo |
+| `i2c_slave.v` | Read-only I2C slave interface |
+| `counter.v` | Utility counter module |
+
+---
+
+## Using the Interactive Emulator
+
+An interactive Python/Pygame emulator is provided for testing without hardware:
+
+**[IMAGE: emulator_screenshot.png - Full emulator window showing canvas, controller, and status panels]**
+
+### Running the Emulator
+
+```bash
+cd test
+python interactive_emulator.py
+```
+
+### Emulator Controls
+
+| Key | Action |
+|-----|--------|
+| Arrow keys | Move cursor (D-Pad) |
+| `R` | Toggle Red |
+| `G` | Toggle Green |
+| `B` | Toggle Blue |
+| `+` / `=` | Increase brush size |
+| `-` | Decrease brush size |
+| `S` | Cycle symmetry mode |
+| `F` | Toggle Fill mode |
+| `Space` | Set fill corner (A button) |
+| `Z` | Undo |
+| `Y` | Redo |
+| `C` | Clear canvas |
+
+### Emulator Features
+
+- Real-time canvas visualization (256×256 grid)
+- Controller state display
+- I2C packet viewer
+- Brush size and symmetry mode indicators
+- Undo/redo buffer status
+
+---
+
+## Running Tests
+
+### Prerequisites
+
+- Python 3.8+
+- cocotb
+- Icarus Verilog (iverilog)
+- pygame
+
+### Install Dependencies
+
+```bash
+pip install cocotb pygame
+```
+
+### Run Cocotb Tests
+
+```bash
+cd test
+make
+```
+
+### Run Feature Demo
+
+```bash
+cd test
+python demo_features.py
+```
+
+**[IMAGE: demo_features_output.png - Screenshot of the demo script output]**
+
+---
+
+## Building for Tiny Tapeout
+
+### GDS Generation
+
+The design is configured for the Tiny Tapeout flow:
+
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/YOUR_USERNAME/tiny_tapeout.git
+cd tiny_tapeout
+
+# Run the hardening flow (requires OpenLane 2)
+./tt/tt_tool.py --harden
+```
+
+### Configuration
+
+Key settings in `src/config.json`:
+
+```json
+{
+  "PL_TARGET_DENSITY_PCT": 87,
+  "CLOCK_PERIOD": 20
+}
+```
+
+- **Target Density**: 87% (design utilizes ~86.7%)
+- **Clock Period**: 20ns (50 MHz)
+
+---
+
+## Connecting to the Demoboard
+
+### Hardware Setup
+
+1. Connect the [Gamepad PMOD](https://github.com/psychogenic/gamepad_pmod) to the input PMOD header
+2. Connect I2C lines (SDA to `uio[1]`, SCL to `uio[2]`)
+3. Connect an I2C master (e.g., RP2040 on the demoboard)
+
+**[IMAGE: demoboard_connection.jpg - Photo showing PMOD and I2C connections]**
+
+### Reading from MicroPython
+
+```python
+from machine import I2C, Pin
+
+i2c = I2C(0, scl=Pin(SCL_PIN), sda=Pin(SDA_PIN), freq=100000)
+
+CANVAS_ADDR = 0x64
+
+def read_canvas():
+    data = i2c.readfrom(CANVAS_ADDR, 3)
+    x = data[0]
+    y = data[1]
+    status = data[2]
+    
+    color = status & 0x07
+    brush_mode = (status >> 3) & 0x01
+    dpad = (status >> 4) & 0x0F
+    
+    return x, y, color, brush_mode, dpad
+
+# Continuous reading
+while True:
+    x, y, color, mode, dpad = read_canvas()
+    print(f"Pos: ({x}, {y}) Color: {color:03b} Mode: {'Brush' if mode else 'Eraser'}")
+```
+
+---
+
+## Design Decisions
+
+### Why Fill Rectangle Instead of Flood Fill?
+
+True flood fill (bucket tool) requires:
+- Reading existing pixel colors from memory
+- Stack-based recursive algorithm
+- Significant RAM for the pixel buffer
+
+Fill Rectangle is a hardware-friendly alternative that:
+- Only requires two corner coordinates
+- Generates pixels sequentially (no recursion)
+- Uses minimal registers
+- Fits within the 1x1 tile constraint
+
+### Why 4-Entry Undo Buffer?
+
+Each undo entry stores X (8 bits) + Y (8 bits) + Color (3 bits) = 19 bits. A 4-entry buffer provides useful undo capability while staying within area constraints. The Python emulator implements stroke-based undo for a more intuitive experience.
+
+---
+
+## License
+
+This project is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- [Tiny Tapeout](https://tinytapeout.com/) for making open-source silicon accessible
+- [Psychogenic](https://github.com/psychogenic) for the excellent Gamepad PMOD
+- The open-source ASIC community for tools and support
+
+---
+
+## Links
+
+- [Tiny Tapeout Documentation](https://tinytapeout.com/)
+- [Gamepad PMOD Project](https://github.com/psychogenic/gamepad_pmod)
+- [OpenLane 2 Documentation](https://openlane.readthedocs.io/)
+- [SKY130 PDK](https://skywater-pdk.readthedocs.io/)
