@@ -22,39 +22,40 @@ project:
     - "position.v"
     - "i2c_slave.v"
     - "colour.v"
+    - "gamepad_pmod.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
 pinout:
-  # Inputs
-  ui[0]: "in0"
-  ui[1]: "in1"
-  ui[2]: "in2"
-  ui[3]: "in3"
-  ui[4]: "in4"
-  ui[5]: "in5"
-  ui[6]: "in6"
-  ui[7]: "in7"
+  # Inputs - Gamepad PMOD
+  ui[0]: "pmod_data"
+  ui[1]: "pmod_clk"
+  ui[2]: "pmod_latch"
+  ui[3]: ""
+  ui[4]: ""
+  ui[5]: ""
+  ui[6]: ""
+  ui[7]: ""
 
-  # Outputs
-  uo[0]: "out0"
-  uo[1]: "out1"
-  uo[2]: "out2"
-  uo[3]: "out3"
-  uo[4]: "out4"
-  uo[5]: "out5"
-  uo[6]: "out6"
-  uo[7]: "out7"
+  # Outputs - I2C state debug
+  uo[0]: "i2c_state[0]"
+  uo[1]: "i2c_state[1]"
+  uo[2]: "i2c_state[2]"
+  uo[3]: ""
+  uo[4]: ""
+  uo[5]: ""
+  uo[6]: ""
+  uo[7]: ""
 
-  # Bidirectional pins
-  uio[0]: "bi0"
-  uio[1]: "bi1"
-  uio[2]: "bi2"
-  uio[3]: "bi3"
-  uio[4]: "bi4"
-  uio[5]: "bi5"
-  uio[6]: "bi6"
-  uio[7]: "bi7"
+  # Bidirectional pins - I2C
+  uio[0]: ""
+  uio[1]: "SDA"
+  uio[2]: "SCL"
+  uio[3]: ""
+  uio[4]: ""
+  uio[5]: ""
+  uio[6]: ""
+  uio[7]: ""
 
 # Do not change!
 yaml_version: 6
