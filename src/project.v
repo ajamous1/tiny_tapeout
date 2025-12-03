@@ -38,7 +38,7 @@ module tt_um_example (
     );
 
     // ================================================================
-    // Fill Mode (needed early for Y button logic)
+    // Fill Mode (B = set corner)
     // ================================================================
     wire fill_active_wire;
     wire [7:0] corner_a_x_wire, corner_a_y_wire, corner_b_x_wire, corner_b_y_wire;
@@ -47,7 +47,7 @@ module tt_um_example (
     fill_mode fill_mode_inst (
         .clk(clk), .rst_n(rst_n),
         .btn_mode(gp_select),
-        .btn_point(gp_y),
+        .btn_point(gp_b),
         .x_pos(x_pos), .y_pos(y_pos),
         .fill_active(fill_active_wire),
         .corner_a_x(corner_a_x_wire), .corner_a_y(corner_a_y_wire),
@@ -59,7 +59,7 @@ module tt_um_example (
     // ================================================================
     // Button Edge Detection & Toggle Logic
     // ================================================================
-    // A = Red, Y = Green (when not in fill mode), X = Blue
+    // A = Red, Y = Green, X = Blue
     reg a_prev, y_prev, x_prev;
     reg sw_red, sw_green, sw_blue, brush_mode;
     
@@ -78,11 +78,10 @@ module tt_um_example (
             a_prev <= gp_a; y_prev <= gp_y; x_prev <= gp_x;
             undo_prev <= undo_combo; redo_prev <= redo_combo;
             
-            // A = Red, X = Blue
+            // A = Red, Y = Green, X = Blue
             if (gp_a && !a_prev) sw_red <= ~sw_red;
+            if (gp_y && !y_prev) sw_green <= ~sw_green;
             if (gp_x && !x_prev) sw_blue <= ~sw_blue;
-            // Y = Green (only when NOT in fill mode)
-            if (gp_y && !y_prev && !fill_active_wire) sw_green <= ~sw_green;
         end
     end
     

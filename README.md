@@ -52,8 +52,9 @@ Tiny Canvas uses a single SNES-compatible controller. Here's the complete button
 | Button | Function | Toggle |
 |--------|----------|--------|
 | **A** | Toggle Red channel | Yes |
-| **Y** | Toggle Green channel (or set fill corner in Fill mode) | Yes |
+| **Y** | Toggle Green channel | Yes |
 | **X** | Toggle Blue channel | Yes |
+| **B** | Set fill corner (in Fill mode) | — |
 
 ### Shoulder & System Buttons
 | Button | Function |
@@ -137,9 +138,9 @@ Fill Rectangle allows you to fill a rectangular area with the current color:
 
 1. Press **Select** to enter Fill mode
 2. Move cursor to first corner
-3. Press **Y** to set Corner A
+3. Press **B** to set Corner A
 4. Move cursor to opposite corner
-5. Press **Y** to set Corner B and execute fill
+5. Press **B** to set Corner B and execute fill
 
 <img width="1522" height="899" alt="image" src="https://github.com/user-attachments/assets/6a7c96fd-534a-4523-bf79-f27af375c5d5" />
 <img width="1488" height="899" alt="image" src="https://github.com/user-attachments/assets/5d271388-e43e-4821-83b9-ce0912037216" />
@@ -303,8 +304,9 @@ python interactive_emulator.py
 |-----|--------|
 | Arrow keys | Move cursor (D-Pad) |
 | `A` | Toggle Red |
-| `Y` | Toggle Green (or set fill corner in Fill mode) |
+| `Y` | Toggle Green |
 | `X` | Toggle Blue |
+| `B` | Set fill corner (in Fill mode) |
 | `+` / `=` | Increase brush size |
 | `-` | Decrease brush size |
 | `Shift+S` | Cycle symmetry mode |
