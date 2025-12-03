@@ -141,7 +141,10 @@ Fill Rectangle allows you to fill a rectangular area with the current color:
 4. Move cursor to opposite corner
 5. Press **A** to set Corner B and execute fill
 
-**[IMAGE: fill_rectangle_demo.gif - Animation showing the fill rectangle workflow]**
+<img width="1522" height="899" alt="image" src="https://github.com/user-attachments/assets/6a7c96fd-534a-4523-bf79-f27af375c5d5" />
+<img width="1488" height="899" alt="image" src="https://github.com/user-attachments/assets/5d271388-e43e-4821-83b9-ce0912037216" />
+
+
 
 The fill operation generates pixels row-by-row and streams them over I2C.
 
@@ -284,7 +287,8 @@ The design is composed of several Verilog modules with clear separation of conce
 
 An interactive Python/Pygame emulator is provided for testing without hardware:
 
-**[IMAGE: emulator_screenshot.png - Full emulator window showing canvas, controller, and status panels]**
+<img width="1595" height="866" alt="image" src="https://github.com/user-attachments/assets/9edf2fa5-fc75-419c-a3c6-5d814f93e139" />
+
 
 ### Running the Emulator
 
