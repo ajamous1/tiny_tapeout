@@ -12,7 +12,8 @@ Released as free and open source under the terms of the Apache License 2.0
 
 Tiny Canvas is a hardware implementation of an MS Paint-style drawing application designed for the Tiny Tapeout ASIC project. It interfaces with a SNES-compatible gamepad controller (via the [Gamepad PMOD](https://github.com/psychogenic/gamepad_pmod)) and communicates canvas state over I2C to a host device.
 
-**[IMAGE: tiny_canvas_demo.png - Screenshot of the interactive emulator showing the canvas, controller, and I2C panel]**
+**<img width="1563" height="874" alt="image" src="https://github.com/user-attachments/assets/1f5afa79-3dd3-426c-9cac-ac0f5891d472" />
+**
 
 The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 87% utilization on the SKY130 process.
 
