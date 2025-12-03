@@ -12,7 +12,8 @@ Released as free and open source under the terms of the Apache License 2.0
 
 Tiny Canvas is a hardware implementation of an MS Paint-style drawing application designed for the Tiny Tapeout ASIC project. It interfaces with a SNES-compatible gamepad controller (via the [Gamepad PMOD](https://github.com/psychogenic/gamepad_pmod)) and communicates canvas state over I2C to a host device.
 
-**[IMAGE: tiny_canvas_demo.png - Screenshot of the interactive emulator showing the canvas, controller, and I2C panel]**
+**<img width="1563" height="874" alt="image" src="https://github.com/user-attachments/assets/1f5afa79-3dd3-426c-9cac-ac0f5891d472" />
+**
 
 The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 87% utilization on the SKY130 process.
 
@@ -74,7 +75,8 @@ Tiny Canvas uses a single SNES-compatible controller. Here's the complete button
 
 Colors are created using additive RGB mixing, similar to how light works:
 
-**[IMAGE: color_mixing_diagram.png - Venn diagram showing RGB color combinations]**
+<img width="500" height="488" alt="image" src="https://github.com/user-attachments/assets/e148099c-a6f9-4659-8cad-7923d8f19a34" />
+
 
 | R | G | B | Result Color | Binary |
 |---|---|---|--------------|--------|
@@ -121,7 +123,11 @@ Cycle through modes using the **Start** button:
 | Vertical | `10` | Mirror across horizontal center axis |
 | 4-Way | `11` | Mirror across both axes |
 
-**[IMAGE: symmetry_modes.png - Visual example of each symmetry mode drawing a line]**
+<img width="1551" height="873" alt="image" src="https://github.com/user-attachments/assets/fea225da-c269-49a7-aaa8-65a596a299f9" />
+<img width="1542" height="874" alt="image" src="https://github.com/user-attachments/assets/1fd68622-0d25-4ddc-a04a-f33eac5d74c4" />
+
+
+
 
 ---
 
@@ -135,7 +141,10 @@ Fill Rectangle allows you to fill a rectangular area with the current color:
 4. Move cursor to opposite corner
 5. Press **Y** to set Corner B and execute fill
 
-**[IMAGE: fill_rectangle_demo.gif - Animation showing the fill rectangle workflow]**
+<img width="1522" height="899" alt="image" src="https://github.com/user-attachments/assets/6a7c96fd-534a-4523-bf79-f27af375c5d5" />
+<img width="1488" height="899" alt="image" src="https://github.com/user-attachments/assets/5d271388-e43e-4821-83b9-ce0912037216" />
+
+
 
 The fill operation generates pixels row-by-row and streams them over I2C.
 
@@ -278,7 +287,8 @@ The design is composed of several Verilog modules with clear separation of conce
 
 An interactive Python/Pygame emulator is provided for testing without hardware:
 
-**[IMAGE: emulator_screenshot.png - Full emulator window showing canvas, controller, and status panels]**
+<img width="1595" height="866" alt="image" src="https://github.com/user-attachments/assets/9edf2fa5-fc75-419c-a3c6-5d814f93e139" />
+
 
 ### Running the Emulator
 
@@ -342,7 +352,8 @@ cd test
 python demo_features.py
 ```
 
-**[IMAGE: demo_features_output.png - Screenshot of the demo script output]**
+<img width="1111" height="777" alt="image" src="https://github.com/user-attachments/assets/1ffb2be3-3d91-4e3e-baf8-4674189b402a" />
+
 
 ---
 
@@ -446,8 +457,7 @@ This project is released under the Apache License 2.0. See [LICENSE](LICENSE) fo
 ## Acknowledgments
 
 - [Tiny Tapeout](https://tinytapeout.com/) for making open-source silicon accessible
-- [Psychogenic](https://github.com/psychogenic) for the excellent Gamepad PMOD
-- The open-source ASIC community for tools and support
+- [Psychogenic](https://github.com/psychogenic) for theGamepad PMOD
 
 ---
 
