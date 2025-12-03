@@ -38,7 +38,8 @@ The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 
 
 Tiny Canvas uses a single SNES-compatible controller. Here's the complete button mapping:
 
-**[IMAGE: controller_mapping.png - Labeled diagram of SNES controller with button functions]**
+<img width="983" height="495" alt="image" src="https://github.com/user-attachments/assets/3ffda88e-b969-4044-840f-021ce8fc35b7" />
+
 
 ### D-Pad (Movement)
 | Button | Function |
