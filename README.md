@@ -123,7 +123,11 @@ Cycle through modes using the **Start** button:
 | Vertical | `10` | Mirror across horizontal center axis |
 | 4-Way | `11` | Mirror across both axes |
 
-**[IMAGE: symmetry_modes.png - Visual example of each symmetry mode drawing a line]**
+<img width="1551" height="873" alt="image" src="https://github.com/user-attachments/assets/fea225da-c269-49a7-aaa8-65a596a299f9" />
+<img width="1542" height="874" alt="image" src="https://github.com/user-attachments/assets/1fd68622-0d25-4ddc-a04a-f33eac5d74c4" />
+
+
+
 
 ---
 
@@ -345,7 +349,8 @@ cd test
 python demo_features.py
 ```
 
-**[IMAGE: demo_features_output.png - Screenshot of the demo script output]**
+<img width="1111" height="777" alt="image" src="https://github.com/user-attachments/assets/1ffb2be3-3d91-4e3e-baf8-4674189b402a" />
+
 
 ---
 
@@ -449,8 +454,7 @@ This project is released under the Apache License 2.0. See [LICENSE](LICENSE) fo
 ## Acknowledgments
 
 - [Tiny Tapeout](https://tinytapeout.com/) for making open-source silicon accessible
-- [Psychogenic](https://github.com/psychogenic) for the excellent Gamepad PMOD
-- The open-source ASIC community for tools and support
+- [Psychogenic](https://github.com/psychogenic) for theGamepad PMOD
 
 ---
 
