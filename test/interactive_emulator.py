@@ -1,36 +1,26 @@
 #!/usr/bin/env python3
 """
-Interactive Tiny Canvas Emulator
-================================
-A pygame-based visualization for the Tiny Canvas MS Paint-style project.
-
-Controls:
-    Arrow Keys  - Move cursor (D-Pad)
-    R           - Toggle Red
-    G           - Toggle Green  
-    B           - Toggle Blue
-    SPACE       - Toggle Brush/Eraser mode
-    I           - Keyboard Input Mode
-    C           - Clear canvas
-    ESC/Q       - Quit
+Tiny Canvas Emulator - Full Feature Version
+Supports: Brush Size, Symmetry, Draw Modes, Undo/Redo (per stroke)
 """
 
 import pygame
 import sys
 import os
+import random
 
 # ============================================================================
-# Colour Definitions (matches Verilog colour.v)
+# Colour Definitions
 # ============================================================================
 COLORS = {
-    0b000: (0, 0, 0),         # Black/None
-    0b100: (255, 0, 0),       # Red
-    0b010: (0, 255, 0),       # Green
-    0b001: (0, 0, 255),       # Blue
-    0b110: (255, 255, 0),     # Yellow (R+G)
-    0b101: (255, 0, 255),     # Magenta (R+B)
-    0b011: (0, 255, 255),     # Cyan (G+B)
-    0b111: (255, 255, 255),   # White (R+G+B)
+    0b000: (0, 0, 0),       # Black
+    0b001: (0, 0, 255),     # Blue
+    0b010: (0, 255, 0),     # Green
+    0b011: (0, 255, 255),   # Cyan
+    0b100: (255, 0, 0),     # Red
+    0b101: (255, 0, 255),   # Magenta
+    0b110: (255, 255, 0),   # Yellow
+    0b111: (255, 255, 255), # White
 }
 
 COLOR_NAMES = {
@@ -38,650 +28,619 @@ COLOR_NAMES = {
     0b100: "Red", 0b101: "Magenta", 0b110: "Yellow", 0b111: "White"
 }
 
+DRAW_MODES = ["Freehand", "Line", "Rectangle", "Spray"]
+SYMMETRY_MODES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
+
 
 class TinyCanvas:
-    """Emulates the Tiny Canvas hardware logic."""
+    """Emulates the Tiny Canvas hardware with all new features."""
     
     def __init__(self):
-        # Hardware state
-        self.btn_up = False
-        self.btn_down = False
-        self.btn_right = False
-        self.btn_left = False
-        self.sw_red = False
-        self.sw_green = False
-        self.sw_blue = False
-        self.sw_brush = True  # Start in brush mode
-        
-        # Canvas state (256x256 grid, each cell stores 3-bit color)
         self.grid_size = 256
         self.canvas = [[0 for _ in range(self.grid_size)] for _ in range(self.grid_size)]
         
-        # Cursor position (start at center)
-        self.cursor_x = 0
-        self.cursor_y = 0
+        # Position
+        self.cursor_x = 128
+        self.cursor_y = 128
         
-        # For handling button press timing
-        self.last_move_time = 0
-        self.move_delay = 50  # milliseconds between moves
+        # Color toggles
+        self.sw_red = False
+        self.sw_green = False
+        self.sw_blue = False
+        self.brush_mode = True
         
-        # I2C communication state
-        self.i2c_buffer = []
+        # New features
+        self.brush_size = 0      # 0-7 (1x1 to 8x8)
+        self.symmetry_mode = 0   # 0=off, 1=H, 2=V, 3=4-way
+        self.draw_mode = 0       # 0=freehand, 1=line, 2=rect, 3=spray
+        
+        # Line/Rect point storage
+        self.point_a = None
+        
+        # Undo/Redo - stores STROKES not individual pixels
+        # Each stroke is a list of (x, y, old_color, new_color)
+        self.undo_buffer = []    # List of strokes
+        self.redo_buffer = []    # List of strokes
+        self.current_stroke = [] # Pixels being painted in current stroke
+        self.max_undo = 32       # Max strokes to remember
+        
+        # I2C state
         self.i2c_x = 0
         self.i2c_y = 0
         self.i2c_status = 0
-        self.i2c_last_state = None
-        self.external_commands_received = 0
+        self.i2c_count = 0
         
-        # Keyboard input mode
-        self.keyboard_input_mode = False
-        self.keyboard_input_buffer = ""
-        self.keyboard_command_status = ""
-        
+        # Timing
+        self.last_move_time = 0
+        self.move_delay = 50
+    
     def get_color_mix(self):
-        """
-        Implements the color mixing logic from colour.v module.
-        In brush mode: combine RGB switches
-        In eraser mode: always black
-        """
-        if self.sw_brush:
-            rgb_sel = (self.sw_red << 2) | (self.sw_green << 1) | self.sw_blue
-            return rgb_sel
-        else:
-            return 0b000  # Eraser mode = black
+        if self.brush_mode:
+            return (int(self.sw_red) << 2) | (int(self.sw_green) << 1) | int(self.sw_blue)
+        return 0
     
     def should_paint(self):
-        """
-        Determine if we should paint based on mode and colour.
-        - Brush mode + RGB=000: DON'T paint (just move)
-        - Brush mode + RGB!=000: Paint the colour
-        - Eraser mode: Paint black (to erase)
-        """
-        if self.sw_brush:
+        if self.brush_mode:
             return self.sw_red or self.sw_green or self.sw_blue
-        else:
-            return True  # Eraser always paints (black)
+        return True
     
     def get_status(self):
-        """
-        Emulates the status output matching hardware pinout.
-        Status Byte [7:0]:
-          [7] = Up button
-          [6] = Down button
-          [5] = Left button
-          [4] = Right button
-          [3] = Brush/Eraser (1=Brush, 0=Eraser)
-          [2:0] = RGB Color
-        """
         status = 0
-        status |= (1 if self.btn_up else 0) << 7
-        status |= (1 if self.btn_down else 0) << 6
-        status |= (1 if self.btn_left else 0) << 5
-        status |= (1 if self.btn_right else 0) << 4
-        status |= (1 if self.sw_brush else 0) << 3
+        status |= int(self.brush_mode) << 3
         status |= self.get_color_mix()
         return status
     
-    def update_cursor(self, current_time):
-        """Update cursor position based on button presses."""
+    def expand_brush(self, x, y):
+        """Expand single pixel to brush size."""
+        pixels = []
+        half = self.brush_size // 2
+        for dy in range(self.brush_size + 1):
+            for dx in range(self.brush_size + 1):
+                px = x + dx - half
+                py = y + dy - half
+                if 0 <= px < 256 and 0 <= py < 256:
+                    pixels.append((px, py))
+        return pixels
+    
+    def apply_symmetry(self, pixels):
+        """Apply symmetry to pixel list."""
+        result = list(pixels)
+        if self.symmetry_mode == 1:  # H-mirror
+            for x, y in pixels:
+                mx = 255 - x
+                if 0 <= mx < 256:
+                    result.append((mx, y))
+        elif self.symmetry_mode == 2:  # V-mirror
+            for x, y in pixels:
+                my = 255 - y
+                if 0 <= my < 256:
+                    result.append((x, my))
+        elif self.symmetry_mode == 3:  # 4-way
+            for x, y in pixels:
+                mx, my = 255 - x, 255 - y
+                if 0 <= mx < 256:
+                    result.append((mx, y))
+                if 0 <= my < 256:
+                    result.append((x, my))
+                if 0 <= mx < 256 and 0 <= my < 256:
+                    result.append((mx, my))
+        return list(set(result))
+    
+    def paint_pixels(self, pixels, color, track_stroke=True):
+        """Paint multiple pixels, tracking for undo."""
+        for x, y in pixels:
+            if 0 <= x < 256 and 0 <= y < 256:
+                old_color = self.canvas[y][x]
+                if old_color != color:
+                    if track_stroke:
+                        self.current_stroke.append((x, y, old_color, color))
+                    self.canvas[y][x] = color
+        self.i2c_count += len(pixels)
+    
+    def start_stroke(self):
+        """Begin a new stroke for undo tracking."""
+        self.current_stroke = []
+    
+    def end_stroke(self):
+        """End current stroke and save to undo buffer."""
+        if self.current_stroke:
+            self.undo_buffer.append(self.current_stroke)
+            if len(self.undo_buffer) > self.max_undo:
+                self.undo_buffer.pop(0)
+            self.redo_buffer.clear()
+        self.current_stroke = []
+    
+    def paint_at(self, x, y):
+        """Paint at position with brush size and symmetry."""
+        if not self.should_paint():
+            return
+        color = self.get_color_mix()
+        pixels = self.expand_brush(x, y)
+        pixels = self.apply_symmetry(pixels)
+        self.paint_pixels(pixels, color)
+        self.i2c_x = x
+        self.i2c_y = y
+        self.i2c_status = self.get_status()
+    
+    def draw_line(self, x0, y0, x1, y1):
+        """Draw line from (x0,y0) to (x1,y1)."""
+        self.start_stroke()
+        color = self.get_color_mix()
+        pixels = []
+        
+        x, y = x0, y0
+        while True:
+            expanded = self.expand_brush(x, y)
+            pixels.extend(expanded)
+            
+            if x == x1 and y == y1:
+                break
+            
+            if x < x1: x += 1
+            elif x > x1: x -= 1
+            
+            if y < y1: y += 1
+            elif y > y1: y -= 1
+        
+        pixels = self.apply_symmetry(pixels)
+        self.paint_pixels(list(set(pixels)), color)
+        self.end_stroke()
+    
+    def draw_rect(self, x0, y0, x1, y1):
+        """Draw rectangle outline."""
+        self.start_stroke()
+        color = self.get_color_mix()
+        pixels = []
+        
+        min_x, max_x = min(x0, x1), max(x0, x1)
+        min_y, max_y = min(y0, y1), max(y0, y1)
+        
+        for x in range(min_x, max_x + 1):
+            pixels.extend(self.expand_brush(x, max_y))
+            pixels.extend(self.expand_brush(x, min_y))
+        
+        for y in range(min_y + 1, max_y):
+            pixels.extend(self.expand_brush(min_x, y))
+            pixels.extend(self.expand_brush(max_x, y))
+        
+        pixels = self.apply_symmetry(list(set(pixels)))
+        self.paint_pixels(pixels, color)
+        self.end_stroke()
+    
+    def spray_paint(self, x, y):
+        """Spray random pixels around position."""
+        color = self.get_color_mix()
+        pixels = []
+        for _ in range(8):
+            dx = random.randint(-8, 7)
+            dy = random.randint(-8, 7)
+            px, py = x + dx, y + dy
+            if 0 <= px < 256 and 0 <= py < 256:
+                pixels.append((px, py))
+        pixels = self.apply_symmetry(pixels)
+        self.paint_pixels(pixels, color)
+    
+    def undo(self):
+        """Undo last stroke (entire brush action)."""
+        if self.undo_buffer:
+            stroke = self.undo_buffer.pop()
+            # Restore all pixels in this stroke
+            for x, y, old_color, new_color in stroke:
+                self.canvas[y][x] = old_color
+            self.redo_buffer.append(stroke)
+            return len(stroke)  # Return pixel count
+        return 0
+    
+    def redo(self):
+        """Redo last undone stroke."""
+        if self.redo_buffer:
+            stroke = self.redo_buffer.pop()
+            # Re-apply all pixels in this stroke
+            for x, y, old_color, new_color in stroke:
+                self.canvas[y][x] = new_color
+            self.undo_buffer.append(stroke)
+            return len(stroke)
+        return 0
+    
+    def set_point(self):
+        """Set point A or B for line/rect mode."""
+        if self.draw_mode in [1, 2]:
+            if self.point_a is None:
+                self.point_a = (self.cursor_x, self.cursor_y)
+                return "Point A set"
+            else:
+                x0, y0 = self.point_a
+                x1, y1 = self.cursor_x, self.cursor_y
+                self.point_a = None
+                if self.draw_mode == 1:
+                    self.draw_line(x0, y0, x1, y1)
+                    return "Line drawn"
+                else:
+                    self.draw_rect(x0, y0, x1, y1)
+                    return "Rectangle drawn"
+        return None
+    
+    def update_cursor(self, current_time, direction):
+        """Update cursor based on direction."""
         if current_time - self.last_move_time < self.move_delay:
             return False
         
         moved = False
-        if self.btn_up and self.cursor_y < self.grid_size - 1:
+        if direction == 'up' and self.cursor_y < 255:
             self.cursor_y += 1
             moved = True
-        elif self.btn_down and self.cursor_y > 0:
+        elif direction == 'down' and self.cursor_y > 0:
             self.cursor_y -= 1
             moved = True
-        elif self.btn_left and self.cursor_x > 0:
+        elif direction == 'left' and self.cursor_x > 0:
             self.cursor_x -= 1
             moved = True
-        elif self.btn_right and self.cursor_x < self.grid_size - 1:
+        elif direction == 'right' and self.cursor_x < 255:
             self.cursor_x += 1
             moved = True
         
         if moved:
             self.last_move_time = current_time
-            # Paint if we should
-            if self.should_paint():
-                canvas_y = self.cursor_y
-                self.canvas[canvas_y][self.cursor_x] = self.get_color_mix()
+            if self.draw_mode == 0 and self.should_paint():
+                self.paint_at(self.cursor_x, self.cursor_y)
+            elif self.draw_mode == 3 and self.should_paint():
+                self.spray_paint(self.cursor_x, self.cursor_y)
         
         return moved
     
-    def auto_send_i2c_if_changed(self):
-        """Automatically send I2C command when state changes."""
-        current_state = (self.cursor_x, self.cursor_y, self.get_status())
-        
-        if current_state != self.i2c_last_state:
-            self.i2c_last_state = current_state
-            x, y, status = current_state
-            self.i2c_receive_byte(x)
-            self.i2c_receive_byte(y)
-            self.i2c_receive_byte(status)
-    
-    def clear_canvas(self):
-        """Clear the entire canvas."""
+    def clear(self):
         self.canvas = [[0 for _ in range(self.grid_size)] for _ in range(self.grid_size)]
-        self.i2c_buffer = []
-        self.external_commands_received = 0
-    
-    def i2c_receive_byte(self, byte_val):
-        """
-        Simulate I2C byte reception.
-        Accepts 3 bytes at a time: X, Y, Status
-        """
-        self.i2c_buffer.append(byte_val)
-        
-        if len(self.i2c_buffer) >= 3:
-            self.i2c_x = self.i2c_buffer[0]
-            self.i2c_y = self.i2c_buffer[1]
-            self.i2c_status = self.i2c_buffer[2]
-            
-            # Extract brush/eraser mode from status byte (bit [3])
-            is_brush_mode = (self.i2c_status >> 3) & 1
-            
-            # Extract color from status byte (bits [2:0] = RGB)
-            color_mix = self.i2c_status & 0b111
-            
-            # If in eraser mode, always output black
-            if not is_brush_mode:
-                color_mix = 0b000
-            
-            # Only paint if should_paint logic passes
-            # Brush mode with color=000 should NOT paint
-            should_paint = True
-            if is_brush_mode and color_mix == 0:
-                should_paint = False
-            
-            # Paint at the specified position
-            if should_paint and 0 <= self.i2c_x < self.grid_size and 0 <= self.i2c_y < self.grid_size:
-                self.canvas[self.i2c_y][self.i2c_x] = color_mix
-            
-            self.i2c_buffer = []
+        self.undo_buffer.clear()
+        self.redo_buffer.clear()
+        self.current_stroke = []
+        self.point_a = None
 
 
 class CanvasEmulator:
-    """Pygame-based GUI for the Tiny Canvas emulator."""
+    """Pygame GUI for Tiny Canvas."""
     
     def __init__(self):
         pygame.init()
         
-        # Get screen info
         info = pygame.display.Info()
-        screen_width = info.current_w
-        screen_height = info.current_h
+        self.window_width = int(info.current_w * 0.85)
+        self.window_height = int(info.current_h * 0.85)
         
-        # Use 80% of screen size
-        window_width = int(screen_width * 0.80)
-        window_height = int(screen_height * 0.80)
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
+        pygame.display.set_caption("Tiny Canvas - Full Features")
         
-        # Create resizable window
-        self.screen = pygame.display.set_mode((window_width, window_height), pygame.RESIZABLE)
-        pygame.display.set_caption("Tiny Canvas Emulator - 256x256")
-        
-        # Grid setup
         self.grid_size = 256
+        self.sidebar_width = 380
         
-        # Reserve space for sidebar
-        self.sidebar_width = min(350, int(window_width * 0.28))
+        self.recalculate_layout()
         
-        # Calculate cell size
-        available_width = window_width - self.sidebar_width - 60
-        available_height = window_height - 120
-        
-        max_cell_w = available_width // self.grid_size
-        max_cell_h = available_height // self.grid_size
-        self.cell_size = min(max_cell_w, max_cell_h)
-        self.cell_size = max(self.cell_size, 2)
-        
-        self.canvas_width = self.cell_size * self.grid_size
-        self.canvas_height = self.cell_size * self.grid_size
-        
-        # Center the canvas
-        self.canvas_offset_x = (window_width - self.sidebar_width - self.canvas_width) // 2
-        self.canvas_offset_y = (window_height - self.canvas_height) // 2 + 40
-        
-        # Colors for UI
-        self.bg_color = (30, 35, 45)
-        self.panel_color = (40, 45, 55)
-        self.text_color = (220, 220, 220)
+        # Colors
+        self.bg_color = (25, 28, 38)
+        self.panel_color = (35, 40, 52)
+        self.text_color = (220, 220, 230)
         self.accent_color = (80, 200, 255)
-        
-        # Screen dimensions
-        self.window_width = window_width
-        self.window_height = window_height
+        self.highlight = (255, 200, 80)
         
         # Fonts
         self.font_title = pygame.font.Font(None, 36)
-        self.font_large = pygame.font.Font(None, 32)
-        self.font_medium = pygame.font.Font(None, 24)
-        self.font_small = pygame.font.Font(None, 20)
+        self.font_large = pygame.font.Font(None, 28)
+        self.font_medium = pygame.font.Font(None, 22)
+        self.font_small = pygame.font.Font(None, 18)
         
-        # Canvas logic
         self.canvas = TinyCanvas()
-        
-        # Clock
         self.clock = pygame.time.Clock()
-        self.fps = 60
+        self.message = ""
+        self.message_time = 0
+        
+        # Track if currently in a freehand stroke
+        self.in_stroke = False
     
-    def recalculate_layout(self, window_width, window_height):
-        """Recalculate layout when window is resized."""
-        self.window_width = window_width
-        self.window_height = window_height
-        
-        self.sidebar_width = min(350, int(window_width * 0.28))
-        
-        available_width = window_width - self.sidebar_width - 60
-        available_height = window_height - 120
-        
-        max_cell_w = available_width // self.grid_size
-        max_cell_h = available_height // self.grid_size
-        self.cell_size = min(max_cell_w, max_cell_h)
-        self.cell_size = max(self.cell_size, 1)
-        
+    def recalculate_layout(self):
+        available_w = self.window_width - self.sidebar_width - 60
+        available_h = self.window_height - 100
+        self.cell_size = min(available_w // self.grid_size, available_h // self.grid_size)
+        self.cell_size = max(self.cell_size, 2)
         self.canvas_width = self.cell_size * self.grid_size
         self.canvas_height = self.cell_size * self.grid_size
-        
-        self.canvas_offset_x = (window_width - self.sidebar_width - self.canvas_width) // 2
-        self.canvas_offset_y = (window_height - self.canvas_height) // 2 + 40
-        
+        self.canvas_x = (self.window_width - self.sidebar_width - self.canvas_width) // 2
+        self.canvas_y = (self.window_height - self.canvas_height) // 2 + 30
+    
+    def show_message(self, msg):
+        self.message = msg
+        self.message_time = pygame.time.get_ticks()
+    
     def handle_events(self):
-        """Handle keyboard input."""
+        current_time = pygame.time.get_ticks()
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
             
             if event.type == pygame.VIDEORESIZE:
+                self.window_width, self.window_height = event.w, event.h
                 self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-                self.recalculate_layout(event.w, event.h)
+                self.recalculate_layout()
             
             if event.type == pygame.KEYDOWN:
-                if self.canvas.keyboard_input_mode:
-                    if event.key == pygame.K_RETURN:
-                        self.process_keyboard_command()
-                    elif event.key == pygame.K_ESCAPE:
-                        self.canvas.keyboard_input_mode = False
-                        self.canvas.keyboard_input_buffer = ""
-                        self.canvas.keyboard_command_status = ""
-                    elif event.key == pygame.K_BACKSPACE:
-                        self.canvas.keyboard_input_buffer = self.canvas.keyboard_input_buffer[:-1]
+                # Color toggles
+                if event.key == pygame.K_r:
+                    self.canvas.sw_red = not self.canvas.sw_red
+                    self.show_message(f"Red {'ON' if self.canvas.sw_red else 'OFF'}")
+                elif event.key == pygame.K_g:
+                    self.canvas.sw_green = not self.canvas.sw_green
+                    self.show_message(f"Green {'ON' if self.canvas.sw_green else 'OFF'}")
+                elif event.key == pygame.K_b:
+                    self.canvas.sw_blue = not self.canvas.sw_blue
+                    self.show_message(f"Blue {'ON' if self.canvas.sw_blue else 'OFF'}")
+                
+                # Brush/Eraser or Set Point
+                elif event.key == pygame.K_SPACE:
+                    if self.canvas.draw_mode in [1, 2]:
+                        result = self.canvas.set_point()
+                        if result:
+                            self.show_message(result)
                     else:
-                        if event.unicode and (event.unicode.isprintable() or event.unicode == ' '):
-                            self.canvas.keyboard_input_buffer += event.unicode
-                else:
-                    if event.key == pygame.K_i:
-                        self.canvas.keyboard_input_mode = True
-                        self.canvas.keyboard_input_buffer = ""
-                        self.canvas.keyboard_command_status = "Format: STATUS or X Y STATUS"
-                    elif event.key == pygame.K_r:
-                        self.canvas.sw_red = not self.canvas.sw_red
-                        print(f"RED: {'ON' if self.canvas.sw_red else 'OFF'}")
-                    elif event.key == pygame.K_g:
-                        self.canvas.sw_green = not self.canvas.sw_green
-                        print(f"GREEN: {'ON' if self.canvas.sw_green else 'OFF'}")
-                    elif event.key == pygame.K_b:
-                        self.canvas.sw_blue = not self.canvas.sw_blue
-                        print(f"BLUE: {'ON' if self.canvas.sw_blue else 'OFF'}")
-                    elif event.key == pygame.K_SPACE:
-                        self.canvas.sw_brush = not self.canvas.sw_brush
-                        print(f"MODE: {'BRUSH' if self.canvas.sw_brush else 'ERASER'}")
-                    elif event.key == pygame.K_c:
-                        self.canvas.clear_canvas()
-                        print("Canvas cleared!")
-                    elif event.key in (pygame.K_ESCAPE, pygame.K_q):
-                        return False
+                        self.canvas.brush_mode = not self.canvas.brush_mode
+                        self.show_message(f"Mode: {'Brush' if self.canvas.brush_mode else 'Eraser'}")
+                
+                # Brush size
+                elif event.key == pygame.K_MINUS or event.key == pygame.K_KP_MINUS:
+                    if self.canvas.brush_size > 0:
+                        self.canvas.brush_size -= 1
+                        self.show_message(f"Brush: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}")
+                elif event.key == pygame.K_EQUALS or event.key == pygame.K_KP_PLUS:
+                    if self.canvas.brush_size < 7:
+                        self.canvas.brush_size += 1
+                        self.show_message(f"Brush: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}")
+                
+                # Draw mode
+                elif event.key == pygame.K_TAB:
+                    self.canvas.draw_mode = (self.canvas.draw_mode + 1) % 4
+                    self.canvas.point_a = None
+                    self.show_message(f"Mode: {DRAW_MODES[self.canvas.draw_mode]}")
+                
+                # Symmetry
+                elif event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                    self.canvas.symmetry_mode = (self.canvas.symmetry_mode + 1) % 4
+                    self.show_message(f"Symmetry: {SYMMETRY_MODES[self.canvas.symmetry_mode]}")
+                
+                # Undo
+                elif event.key == pygame.K_z or event.key == pygame.K_u:
+                    count = self.canvas.undo()
+                    if count:
+                        self.show_message(f"Undo ({count} pixels)")
+                    else:
+                        self.show_message("Nothing to undo")
+                
+                # Redo
+                elif event.key == pygame.K_y:
+                    count = self.canvas.redo()
+                    if count:
+                        self.show_message(f"Redo ({count} pixels)")
+                    else:
+                        self.show_message("Nothing to redo")
+                
+                # Clear
+                elif event.key == pygame.K_c:
+                    self.canvas.clear()
+                    self.show_message("Canvas cleared")
+                
+                # Quit
+                elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    return False
         
-        # Handle arrow keys (held down)
-        if not self.canvas.keyboard_input_mode:
-            keys = pygame.key.get_pressed()
-            self.canvas.btn_up = keys[pygame.K_UP]
-            self.canvas.btn_down = keys[pygame.K_DOWN]
-            self.canvas.btn_left = keys[pygame.K_LEFT]
-            self.canvas.btn_right = keys[pygame.K_RIGHT]
-        else:
-            self.canvas.btn_up = False
-            self.canvas.btn_down = False
-            self.canvas.btn_left = False
-            self.canvas.btn_right = False
+        # Movement (held keys) - track as single stroke
+        keys = pygame.key.get_pressed()
+        any_movement = keys[pygame.K_UP] or keys[pygame.K_DOWN] or keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]
+        
+        # Start stroke when beginning to move in freehand/spray mode
+        if any_movement and not self.in_stroke:
+            if self.canvas.draw_mode in [0, 3]:  # Freehand or Spray
+                self.canvas.start_stroke()
+                self.in_stroke = True
+        
+        # End stroke when stopping movement
+        if not any_movement and self.in_stroke:
+            self.canvas.end_stroke()
+            self.in_stroke = False
+        
+        if keys[pygame.K_UP]:
+            self.canvas.update_cursor(current_time, 'up')
+        elif keys[pygame.K_DOWN]:
+            self.canvas.update_cursor(current_time, 'down')
+        elif keys[pygame.K_LEFT]:
+            self.canvas.update_cursor(current_time, 'left')
+        elif keys[pygame.K_RIGHT]:
+            self.canvas.update_cursor(current_time, 'right')
         
         return True
     
-    def process_keyboard_command(self):
-        """Parse and execute a keyboard command."""
-        try:
-            parts = self.canvas.keyboard_input_buffer.strip().split()
-            
-            if len(parts) == 1:
-                # Single byte mode: STATUS
-                input_str = parts[0]
-                if input_str.startswith('0x') or input_str.startswith('0X'):
-                    status = int(input_str, 16)
-                else:
-                    status = int(input_str)
-                
-                if not (0 <= status <= 255):
-                    self.canvas.keyboard_command_status = "Error: Value must be 0-255"
-                    return
-                
-                # Decode and apply
-                btn_up = (status >> 7) & 1
-                btn_down = (status >> 6) & 1
-                btn_left = (status >> 5) & 1
-                btn_right = (status >> 4) & 1
-                brush = (status >> 3) & 1
-                color = status & 0b111
-                
-                self.canvas.sw_brush = bool(brush)
-                self.canvas.sw_red = bool((color >> 2) & 1)
-                self.canvas.sw_green = bool((color >> 1) & 1)
-                self.canvas.sw_blue = bool(color & 1)
-                
-                # Move cursor
-                if btn_up and self.canvas.cursor_y < self.canvas.grid_size - 1:
-                    self.canvas.cursor_y += 1
-                elif btn_down and self.canvas.cursor_y > 0:
-                    self.canvas.cursor_y -= 1
-                elif btn_left and self.canvas.cursor_x > 0:
-                    self.canvas.cursor_x -= 1
-                elif btn_right and self.canvas.cursor_x < self.canvas.grid_size - 1:
-                    self.canvas.cursor_x += 1
-                
-                # Paint if should_paint
-                if self.canvas.should_paint():
-                    self.canvas.canvas[self.canvas.cursor_y][self.canvas.cursor_x] = self.canvas.get_color_mix()
-                
-                color_name = COLOR_NAMES.get(color, "Unknown")
-                self.canvas.keyboard_command_status = f"OK: 0x{status:02X} -> {color_name} @ ({self.canvas.cursor_x},{self.canvas.cursor_y})"
-                
-            elif len(parts) == 3:
-                # Three byte mode: X Y STATUS
-                x = int(parts[0])
-                y = int(parts[1])
-                if parts[2].startswith('0x') or parts[2].startswith('0X'):
-                    status = int(parts[2], 16)
-                else:
-                    status = int(parts[2])
-                
-                if not (0 <= x < self.canvas.grid_size):
-                    self.canvas.keyboard_command_status = f"Error: X must be 0-{self.canvas.grid_size-1}"
-                    return
-                if not (0 <= y < self.canvas.grid_size):
-                    self.canvas.keyboard_command_status = f"Error: Y must be 0-{self.canvas.grid_size-1}"
-                    return
-                if not (0 <= status <= 255):
-                    self.canvas.keyboard_command_status = "Error: STATUS must be 0-255"
-                    return
-                
-                # Send via I2C
-                self.canvas.i2c_receive_byte(x)
-                self.canvas.i2c_receive_byte(y)
-                self.canvas.i2c_receive_byte(status)
-                
-                color = status & 0b111
-                color_name = COLOR_NAMES.get(color, "Unknown")
-                self.canvas.keyboard_command_status = f"OK: {color_name} at ({x}, {y})"
-                
-            else:
-                self.canvas.keyboard_command_status = "Error: Use STATUS or X Y STATUS"
-                return
-            
-            self.canvas.keyboard_input_buffer = ""
-            
-        except ValueError:
-            self.canvas.keyboard_command_status = "Error: Invalid number format"
-        except Exception as e:
-            self.canvas.keyboard_command_status = f"Error: {str(e)}"
-    
     def draw_header(self):
-        """Draw header with title and controls hint."""
-        title = self.font_title.render("TINY CANVAS - 256x256 Pixel Emulator", True, self.accent_color)
-        title_rect = title.get_rect(center=(self.window_width // 2, 25))
-        self.screen.blit(title, title_rect)
+        title = self.font_title.render("TINY CANVAS - Full Feature Emulator", True, self.accent_color)
+        self.screen.blit(title, (self.window_width // 2 - title.get_width() // 2, 15))
         
-        if not self.canvas.keyboard_input_mode:
-            hint = self.font_small.render("Arrow Keys: Move | R/G/B: Colors | I: Input Mode | Space: Brush/Eraser | C: Clear | ESC: Quit", True, (150, 150, 150))
-        else:
-            hint = self.font_small.render("INPUT MODE - Enter: Apply | ESC: Cancel", True, (255, 200, 100))
-        hint_rect = hint.get_rect(center=(self.window_width // 2, 50))
-        self.screen.blit(hint, hint_rect)
+        hint = "Arrows:Move | R/G/B:Color | Space:Brush/Point | Tab:Mode | Shift+S:Symmetry | +/-:Size | Z:Undo | Y:Redo"
+        hint_surf = self.font_small.render(hint, True, (120, 120, 130))
+        self.screen.blit(hint_surf, (self.window_width // 2 - hint_surf.get_width() // 2, 45))
     
-    def draw_grid(self):
-        """Draw the 256x256 canvas grid."""
-        for canvas_y in range(self.grid_size):
-            for x in range(self.grid_size):
-                screen_y = self.grid_size - 1 - canvas_y
-                
+    def draw_canvas(self):
+        for cy in range(self.grid_size):
+            for cx in range(self.grid_size):
+                screen_y = self.grid_size - 1 - cy
                 rect = pygame.Rect(
-                    self.canvas_offset_x + x * self.cell_size,
-                    self.canvas_offset_y + screen_y * self.cell_size,
-                    self.cell_size,
-                    self.cell_size
+                    self.canvas_x + cx * self.cell_size,
+                    self.canvas_y + screen_y * self.cell_size,
+                    self.cell_size, self.cell_size
                 )
-                
-                color_value = self.canvas.canvas[canvas_y][x]
-                color = COLORS[color_value]
+                color = COLORS[self.canvas.canvas[cy][cx]]
                 pygame.draw.rect(self.screen, color, rect)
         
-        # Draw border
-        border_rect = pygame.Rect(
-            self.canvas_offset_x - 2,
-            self.canvas_offset_y - 2,
-            self.canvas_width + 4,
-            self.canvas_height + 4
-        )
-        pygame.draw.rect(self.screen, (100, 100, 100), border_rect, 2)
+        pygame.draw.rect(self.screen, (80, 80, 90),
+                        (self.canvas_x - 2, self.canvas_y - 2,
+                         self.canvas_width + 4, self.canvas_height + 4), 2)
         
-        # Draw cursor
-        cursor_size = max(self.cell_size * 4, 8)
-        cursor_screen_y = self.grid_size - 1 - self.canvas.cursor_y
+        # Cursor (size reflects brush)
+        cursor_size = max(self.cell_size * (self.canvas.brush_size + 2), 8)
+        screen_y = self.grid_size - 1 - self.canvas.cursor_y
+        cx = self.canvas_x + self.canvas.cursor_x * self.cell_size + self.cell_size // 2
+        cy = self.canvas_y + screen_y * self.cell_size + self.cell_size // 2
+        pygame.draw.rect(self.screen, (255, 255, 0),
+                        (cx - cursor_size // 2, cy - cursor_size // 2, cursor_size, cursor_size), 2)
         
-        pixel_center_x = self.canvas_offset_x + self.canvas.cursor_x * self.cell_size + self.cell_size // 2
-        pixel_center_y = self.canvas_offset_y + cursor_screen_y * self.cell_size + self.cell_size // 2
-        
-        cursor_rect = pygame.Rect(
-            pixel_center_x - cursor_size // 2,
-            pixel_center_y - cursor_size // 2,
-            cursor_size,
-            cursor_size
-        )
-        pygame.draw.rect(self.screen, (255, 255, 0), cursor_rect, 2)
+        # Point A marker
+        if self.canvas.point_a:
+            ax, ay = self.canvas.point_a
+            screen_ay = self.grid_size - 1 - ay
+            px = self.canvas_x + ax * self.cell_size + self.cell_size // 2
+            py = self.canvas_y + screen_ay * self.cell_size + self.cell_size // 2
+            pygame.draw.circle(self.screen, (255, 100, 100), (px, py), 6, 2)
     
     def draw_sidebar(self):
-        """Draw the control panel sidebar."""
-        sidebar_x = self.window_width - self.sidebar_width + 20
-        y_offset = 70
+        sx = self.window_width - self.sidebar_width + 15
+        y = 70
         
-        # Title
-        title = self.font_large.render("Tiny Canvas", True, self.text_color)
-        self.screen.blit(title, (sidebar_x, y_offset))
-        y_offset += 40
+        pygame.draw.rect(self.screen, self.panel_color,
+                        (sx - 10, y - 10, self.sidebar_width - 20, self.window_height - 90),
+                        border_radius=10)
         
-        # Current color preview
-        color_value = self.canvas.get_color_mix()
-        color = COLORS[color_value]
-        color_rect = pygame.Rect(sidebar_x, y_offset, 60, 60)
-        pygame.draw.rect(self.screen, color, color_rect)
-        pygame.draw.rect(self.screen, self.text_color, color_rect, 2)
+        # Color preview
+        color = self.canvas.get_color_mix()
+        pygame.draw.rect(self.screen, COLORS[color], (sx, y, 60, 60))
+        pygame.draw.rect(self.screen, self.text_color, (sx, y, 60, 60), 2)
         
-        # Color name
-        color_text = self.font_medium.render(COLOR_NAMES[color_value], True, self.text_color)
-        self.screen.blit(color_text, (sidebar_x + 70, y_offset + 18))
-        y_offset += 80
+        name = self.font_large.render(COLOR_NAMES[color], True, self.text_color)
+        self.screen.blit(name, (sx + 70, y + 5))
         
-        # Mode
-        mode = "BRUSH" if self.canvas.sw_brush else "ERASER"
-        mode_color = (0, 255, 0) if self.canvas.sw_brush else (255, 100, 100)
-        mode_text = self.font_medium.render(f"Mode: {mode}", True, mode_color)
-        self.screen.blit(mode_text, (sidebar_x, y_offset))
-        y_offset += 35
+        mode_text = "BRUSH" if self.canvas.brush_mode else "ERASER"
+        mode_color = (80, 255, 120) if self.canvas.brush_mode else (255, 100, 100)
+        mode = self.font_medium.render(f"Mode: {mode_text}", True, mode_color)
+        self.screen.blit(mode, (sx + 70, y + 35))
+        y += 75
         
         # RGB switches
-        self.draw_switch_indicator(sidebar_x, y_offset, "R", self.canvas.sw_red, (255, 0, 0))
-        y_offset += 35
-        self.draw_switch_indicator(sidebar_x, y_offset, "G", self.canvas.sw_green, (0, 255, 0))
-        y_offset += 35
-        self.draw_switch_indicator(sidebar_x, y_offset, "B", self.canvas.sw_blue, (0, 0, 255))
-        y_offset += 45
+        for label, state, clr in [("R", self.canvas.sw_red, (255, 60, 60)),
+                                   ("G", self.canvas.sw_green, (60, 255, 60)),
+                                   ("B", self.canvas.sw_blue, (60, 60, 255))]:
+            lbl = self.font_large.render(label, True, self.text_color)
+            self.screen.blit(lbl, (sx, y))
+            box_color = clr if state else (50, 50, 55)
+            pygame.draw.rect(self.screen, box_color, (sx + 25, y, 50, 22))
+            pygame.draw.rect(self.screen, self.text_color, (sx + 25, y, 50, 22), 1)
+            st = self.font_small.render("ON" if state else "OFF", True, self.text_color)
+            self.screen.blit(st, (sx + 85, y + 3))
+            y += 28
+        y += 10
         
         # Position
-        pos_text = self.font_small.render(f"Position: ({self.canvas.cursor_x}, {self.canvas.cursor_y})", True, self.text_color)
-        self.screen.blit(pos_text, (sidebar_x, y_offset))
-        y_offset += 25
+        pos = self.font_medium.render(f"Position: ({self.canvas.cursor_x}, {self.canvas.cursor_y})", True, self.text_color)
+        self.screen.blit(pos, (sx, y))
+        y += 25
         
-        # Status register
-        status = self.canvas.get_status()
-        status_text = self.font_small.render(f"Status: 0x{status:02X}", True, self.text_color)
-        self.screen.blit(status_text, (sidebar_x, y_offset))
-        y_offset += 30
+        # Draw mode
+        dm = self.font_medium.render(f"Draw Mode: {DRAW_MODES[self.canvas.draw_mode]}", True, self.highlight)
+        self.screen.blit(dm, (sx, y))
+        y += 25
         
-        # I2C section
-        i2c_header = self.font_small.render("I2C: Automatic", True, (100, 255, 100))
-        self.screen.blit(i2c_header, (sidebar_x, y_offset))
-        y_offset += 22
+        # Brush size
+        bs = self.font_medium.render(f"Brush Size: {self.canvas.brush_size + 1}x{self.canvas.brush_size + 1}", True, self.text_color)
+        self.screen.blit(bs, (sx, y))
+        y += 25
         
-        i2c_info1 = self.font_small.render("State change -> I2C send", True, (180, 180, 180))
-        self.screen.blit(i2c_info1, (sidebar_x, y_offset))
-        y_offset += 20
+        # Symmetry
+        sym = self.font_medium.render(f"Symmetry: {SYMMETRY_MODES[self.canvas.symmetry_mode]}", True, self.text_color)
+        self.screen.blit(sym, (sx, y))
+        y += 25
         
-        i2c_info2 = self.font_small.render("I2C receive -> Paint pixel", True, (180, 180, 180))
-        self.screen.blit(i2c_info2, (sidebar_x, y_offset))
-        y_offset += 25
+        # Point A status
+        if self.canvas.draw_mode in [1, 2]:
+            if self.canvas.point_a:
+                pa = self.font_small.render(f"Point A: {self.canvas.point_a}", True, (255, 150, 150))
+            else:
+                pa = self.font_small.render("Point A: Not set (Space)", True, (150, 150, 150))
+            self.screen.blit(pa, (sx, y))
+            y += 22
         
-        # External I2C indicator
-        ext_text = self.font_small.render("External I2C: Ready", True, (150, 150, 150))
-        self.screen.blit(ext_text, (sidebar_x, y_offset))
-        y_offset += 20
+        y += 8
         
-        cmd_text = self.font_small.render(f"  Commands: {self.canvas.external_commands_received}", True, (180, 180, 180))
-        self.screen.blit(cmd_text, (sidebar_x, y_offset))
-        y_offset += 30
+        # Undo/Redo - now shows strokes
+        undo_count = len(self.canvas.undo_buffer)
+        redo_count = len(self.canvas.redo_buffer)
+        undo_text = f"Undo: {undo_count} strokes | Redo: {redo_count} strokes"
+        undo = self.font_small.render(undo_text, True, (150, 150, 160))
+        self.screen.blit(undo, (sx, y))
+        y += 25
         
-        # I2C Communication
-        i2c_comm = self.font_small.render("I2C Communication:", True, (100, 200, 255))
-        self.screen.blit(i2c_comm, (sidebar_x, y_offset))
-        y_offset += 22
+        # I2C stats
+        i2c_header = self.font_medium.render("I2C Output:", True, self.accent_color)
+        self.screen.blit(i2c_header, (sx, y))
+        y += 22
         
-        buffer_text = self.font_small.render(f"Buffer: {len(self.canvas.i2c_buffer)}/3 bytes", True, self.text_color)
-        self.screen.blit(buffer_text, (sidebar_x, y_offset))
-        y_offset += 22
+        i2c_info = [
+            f"X: 0x{self.canvas.i2c_x:02X} ({self.canvas.i2c_x})",
+            f"Y: 0x{self.canvas.i2c_y:02X} ({self.canvas.i2c_y})",
+            f"Status: 0x{self.canvas.i2c_status:02X}",
+            f"Packets: {self.canvas.i2c_count}"
+        ]
+        for info in i2c_info:
+            txt = self.font_small.render(info, True, (180, 180, 190))
+            self.screen.blit(txt, (sx + 10, y))
+            y += 18
         
-        # Last I2C transmission
-        if self.canvas.i2c_status != 0 or self.canvas.i2c_x != 0 or self.canvas.i2c_y != 0:
-            last_text = self.font_small.render("Last I2C Transmission:", True, self.text_color)
-            self.screen.blit(last_text, (sidebar_x, y_offset))
-            y_offset += 20
-            
-            byte1 = self.font_small.render(f"Byte 1 (X):  0x{self.canvas.i2c_x:02X} = {self.canvas.i2c_x}", True, (255, 200, 100))
-            self.screen.blit(byte1, (sidebar_x, y_offset))
-            y_offset += 20
-            
-            byte2 = self.font_small.render(f"Byte 2 (Y):  0x{self.canvas.i2c_y:02X} = {self.canvas.i2c_y}", True, (255, 200, 100))
-            self.screen.blit(byte2, (sidebar_x, y_offset))
-            y_offset += 20
-            
-            byte3 = self.font_small.render(f"Byte 3 (St): 0x{self.canvas.i2c_status:02X}", True, (255, 200, 100))
-            self.screen.blit(byte3, (sidebar_x, y_offset))
-            y_offset += 20
-            
-            # Status breakdown
-            decode1 = self.font_small.render(f"  [7:4]={self.canvas.i2c_status >> 4:04b} [3]={(self.canvas.i2c_status >> 3) & 1}", True, (180, 180, 180))
-            self.screen.blit(decode1, (sidebar_x, y_offset))
-            y_offset += 18
-            
-            last_color = self.canvas.i2c_status & 0b111
-            color_name = COLOR_NAMES.get(last_color, "Unknown")
-            decode2 = self.font_small.render(f"  RGB[2:0]: {color_name} (0b{last_color:03b})", True, (180, 180, 180))
-            self.screen.blit(decode2, (sidebar_x, y_offset))
+        y += 15
+        
+        # Controls
+        controls = self.font_medium.render("Controls:", True, self.text_color)
+        self.screen.blit(controls, (sx, y))
+        y += 22
+        
+        ctrl_list = [
+            "Arrows = Move cursor",
+            "R/G/B = Toggle colors",
+            "Space = Brush/Eraser or Set Point",
+            "Tab = Cycle draw mode",
+            "Shift+S = Cycle symmetry",
+            "+/- = Brush size",
+            "Z = Undo stroke, Y = Redo stroke",
+            "C = Clear canvas"
+        ]
+        for ctrl in ctrl_list:
+            txt = self.font_small.render(ctrl, True, (140, 140, 150))
+            self.screen.blit(txt, (sx, y))
+            y += 17
     
-    def draw_switch_indicator(self, x, y, label, state, color):
-        """Draw a switch indicator (on/off)."""
-        label_text = self.font_medium.render(label, True, self.text_color)
-        self.screen.blit(label_text, (x, y))
-        
-        switch_x = x + 30
-        switch_rect = pygame.Rect(switch_x, y, 50, 24)
-        switch_color = color if state else (60, 60, 60)
-        pygame.draw.rect(self.screen, switch_color, switch_rect)
-        pygame.draw.rect(self.screen, self.text_color, switch_rect, 1)
-        
-        state_text = "ON" if state else "OFF"
-        state_render = self.font_small.render(state_text, True, self.text_color)
-        self.screen.blit(state_render, (switch_x + 90, y + 4))
-    
-    def draw_keyboard_input(self):
-        """Draw the keyboard input box when in input mode."""
-        if not self.canvas.keyboard_input_mode and not self.canvas.keyboard_command_status:
-            return
-        
-        box_height = 80
-        box_y = self.window_height - box_height - 10
-        box_rect = pygame.Rect(10, box_y, self.window_width - 20, box_height)
-        
-        pygame.draw.rect(self.screen, (40, 40, 60), box_rect)
-        border_color = (100, 200, 255) if self.canvas.keyboard_input_mode else (100, 100, 100)
-        pygame.draw.rect(self.screen, border_color, box_rect, 2)
-        
-        y_offset = box_y + 10
-        
-        if self.canvas.keyboard_input_mode:
-            title = self.font_medium.render("Input Mode - Enter command:", True, (100, 200, 255))
-            self.screen.blit(title, (20, y_offset))
-            y_offset += 28
-            
-            input_text = self.canvas.keyboard_input_buffer + "_"
-            input_render = self.font_medium.render(input_text, True, (255, 255, 0))
-            self.screen.blit(input_render, (20, y_offset))
-        
-        if self.canvas.keyboard_command_status:
-            status_y = box_y + box_height - 25
-            status_color = (100, 255, 100) if "OK" in self.canvas.keyboard_command_status else (255, 100, 100)
-            status_render = self.font_small.render(self.canvas.keyboard_command_status, True, status_color)
-            self.screen.blit(status_render, (20, status_y))
+    def draw_message(self):
+        if self.message and pygame.time.get_ticks() - self.message_time < 2000:
+            msg = self.font_large.render(self.message, True, self.highlight)
+            pygame.draw.rect(self.screen, (40, 40, 50),
+                           (self.canvas_x, self.canvas_y + self.canvas_height + 10,
+                            msg.get_width() + 20, 30), border_radius=5)
+            self.screen.blit(msg, (self.canvas_x + 10, self.canvas_y + self.canvas_height + 15))
     
     def run(self):
-        """Main emulator loop."""
+        print("=" * 60)
+        print("Tiny Canvas - Full Feature Emulator")
+        print("=" * 60)
+        print("Features:")
+        print("  - Brush Size: +/- keys (1x1 to 8x8)")
+        print("  - Symmetry: Shift+S (Off, H-Mirror, V-Mirror, 4-Way)")
+        print("  - Draw Modes: Tab (Freehand, Line, Rectangle, Spray)")
+        print("  - Undo/Redo: Z and Y (undoes entire strokes, not pixels)")
+        print("=" * 60)
+        
         running = True
-        
-        print("=" * 60)
-        print("Tiny Canvas Emulator Started")
-        print("=" * 60)
-        print("Canvas: 256x256 pixels")
-        print("Coordinate System: (0,0) = BOTTOM-LEFT")
-        print("")
-        print("IMPORTANT: In brush mode with RGB=000, moving does NOT paint!")
-        print("           Select at least one color to paint, or use eraser mode.")
-        print("=" * 60)
-        print("\nControls:")
-        print("  Arrow Keys  = Move cursor")
-        print("  R           = Toggle RED")
-        print("  G           = Toggle GREEN")  
-        print("  B           = Toggle BLUE")
-        print("  SPACE       = Toggle BRUSH/ERASER")
-        print("  I           = Keyboard Input Mode")
-        print("  C           = Clear canvas")
-        print("  ESC / Q     = Quit")
-        print("=" * 60)
-        
         while running:
             running = self.handle_events()
             
-            current_time = pygame.time.get_ticks()
-            self.canvas.update_cursor(current_time)
-            self.canvas.auto_send_i2c_if_changed()
-            
             self.screen.fill(self.bg_color)
             self.draw_header()
-            self.draw_grid()
+            self.draw_canvas()
             self.draw_sidebar()
-            self.draw_keyboard_input()
+            self.draw_message()
             
             pygame.display.flip()
-            self.clock.tick(self.fps)
+            self.clock.tick(60)
         
         pygame.quit()
-        print("\nEmulator closed.")
 
 
 def main():

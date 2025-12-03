@@ -23,6 +23,14 @@ project:
     - "i2c_slave.v"
     - "colour.v"
     - "gamepad_pmod.v"
+    - "brush_settings.v"
+    - "draw_mode.v"
+    - "draw_engine.v"
+    - "line_draw.v"
+    - "rect_draw.v"
+    - "lfsr.v"
+    - "packet_generator.v"
+    - "undo_redo.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
