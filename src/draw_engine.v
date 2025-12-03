@@ -68,6 +68,10 @@ module draw_engine (
     
     localparam IDLE = 2'd0, SPRAY = 2'd1, LINE = 2'd2, RECT = 2'd3;
     
+    // Spray offset calculation (signed extension for proper offset)
+    wire [7:0] spray_offset_x = {{4{random[3]}}, random[3:0]};  // Sign-extend 4-bit to 8-bit
+    wire [7:0] spray_offset_y = {{4{random[7]}}, random[7:4]};  // Sign-extend 4-bit to 8-bit
+    
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= IDLE;
@@ -77,8 +81,8 @@ module draw_engine (
             lfsr_en <= 1'b0;
             move_prev <= 1'b0;
             shape_prev <= 1'b0;
-            spray_cnt <= 0;
-            pixel_x <= 0; pixel_y <= 0;
+            spray_cnt <= 3'd0;
+            pixel_x <= 8'd0; pixel_y <= 8'd0;
         end else begin
             pixel_valid <= 1'b0;
             line_start <= 1'b0;
@@ -114,11 +118,11 @@ module draw_engine (
                 
                 SPRAY: begin
                     lfsr_en <= 1'b1;
-                    pixel_x <= x_pos + random[3:0] - 4'd8;
-                    pixel_y <= y_pos + random[7:4] - 4'd8;
+                    pixel_x <= x_pos + spray_offset_x;
+                    pixel_y <= y_pos + spray_offset_y;
                     pixel_valid <= 1'b1;
-                    if (spray_cnt > 1)
-                        spray_cnt <= spray_cnt - 1;
+                    if (spray_cnt > 3'd1)
+                        spray_cnt <= spray_cnt - 3'd1;
                     else
                         state <= IDLE;
                 end
