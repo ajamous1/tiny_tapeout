@@ -1,6 +1,6 @@
 // ============================================================================
 // Simple I2C Slave (Read-Only)
-// Responds to address match with 3 sequential bytes: x_pos, y_pos, status
+// Responds to address match with 4 sequential bytes: x_pos, y_pos, status, brush_status
 //
 // Implements:
 //   - START/STOP detection
@@ -29,6 +29,7 @@ module i2c_slave #(
     input  wire [7:0] x_pos,
     input  wire [7:0] y_pos,
     input  wire [7:0] status,
+    input  wire [7:0] brush_status,   // 4th byte: fill, symmetry, brush size
     input  wire       clk,
     input  wire       rst_n
 );
@@ -237,7 +238,7 @@ module i2c_slave #(
             end
 
             // --------------------------------------------------------------
-            // NEXT_BYTE
+            // NEXT_BYTE - Now sends 4 bytes: x_pos, y_pos, status, brush_status
             // --------------------------------------------------------------
             NEXT_BYTE: begin
                 case (byte_index)
@@ -251,6 +252,12 @@ module i2c_slave #(
                         //$display("[%0t] NEXT: Sending status=%0d", $time, status);
                         shreg      <= status;
                         byte_index <= 2;
+                        state      <= TX_BYTE;
+                    end
+                    2: begin
+                        //$display("[%0t] NEXT: Sending brush_status=%0d", $time, brush_status);
+                        shreg      <= brush_status;
+                        byte_index <= 3;
                         state      <= TX_BYTE;
                     end
                     default: begin

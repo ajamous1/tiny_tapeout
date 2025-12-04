@@ -218,6 +218,19 @@ module tt_um_example (
     assign status_reg[2:0] = colour_out;
 
     // ================================================================
+    // Brush Status Byte (4th byte for I2C)
+    // ================================================================
+    // Bit 7:6 = Reserved (00)
+    // Bit 5   = Fill mode active
+    // Bit 4:3 = Symmetry mode (0=Off, 1=H, 2=V, 3=4-Way)
+    // Bit 2:0 = Brush size (0-7)
+    wire [7:0] brush_status_reg;
+    assign brush_status_reg[7:6] = 2'b00;          // Reserved
+    assign brush_status_reg[5]   = fill_active_wire;
+    assign brush_status_reg[4:3] = symmetry_mode;
+    assign brush_status_reg[2:0] = brush_size;
+
+    // ================================================================
     // I2C Slave Interface
     // ================================================================
     wire sda_oe_int, sda_out_int;
@@ -231,6 +244,7 @@ module tt_um_example (
         .x_pos(pkt_x),
         .y_pos(pkt_y),
         .status(status_reg),
+        .brush_status(brush_status_reg),
         .clk(clk),
         .rst_n(rst_n)
     );
