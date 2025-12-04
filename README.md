@@ -266,6 +266,8 @@ At cursor, x-pos is loaded into shreg and shifted out MSB
 <img width="1113" height="510" alt="image" src="https://github.com/user-attachments/assets/47038542-d11f-4653-99bb-1988983d62b1" />
 
 After receiving MACK, moving to new byte 
+<img width="533" height="159" alt="image" src="https://github.com/user-attachments/assets/67ec7049-b726-4840-81ae-031721c14ac7" />
+
 
 
 
