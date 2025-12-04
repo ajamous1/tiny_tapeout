@@ -392,12 +392,12 @@ Key settings in `src/config.json`:
 
 ```json
 {
-  "PL_TARGET_DENSITY_PCT": 87,
+  "PL_TARGET_DENSITY_PCT": 89,
   "CLOCK_PERIOD": 20
 }
 ```
 
-- **Target Density**: 87% (design utilizes ~86.7%)
+- **Target Density**: 89% (increased from 87% to fix GPL-0302)
 - **Clock Period**: 20ns (50 MHz)
 
 ---
