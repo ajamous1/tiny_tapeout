@@ -159,7 +159,9 @@ module tt_um_example (
     // Pixel Source Selection
     // ================================================================
     // Freehand: when moving and paint enabled and not in fill mode
-    wire freehand_trigger = movement_edge && paint_enable && !fill_active_wire;
+    // Use movement (level) instead of movement_edge to ensure painting
+    // happens whenever movement is active, not just on the edge
+    wire freehand_trigger = movement && paint_enable && !fill_active_wire;
     
     // Select pixel source: fill operation or cursor position
     wire [7:0] pixel_x = fill_busy ? fill_x : x_pos;

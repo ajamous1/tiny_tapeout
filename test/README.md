@@ -1,27 +1,39 @@
-# Sample testbench for a Tiny Tapeout project
+# Testbench for Tiny Canvas
 
-This is a sample testbench for a Tiny Tapeout project. It uses [cocotb](https://docs.cocotb.org/en/stable/) to drive the DUT and check the outputs.
-See below to get started or for more information, check the [website](https://tinytapeout.com/hdl/testing/).
+This directory contains comprehensive test suites for the Tiny Canvas project using [cocotb](https://docs.cocotb.org/en/stable/).
 
-## Setting up
+## Test Files
 
-1. Edit [Makefile](Makefile) and modify `PROJECT_SOURCES` to point to your Verilog files.
-2. Edit [tb.v](tb.v) and replace `tt_um_example` with your module name.
+- **`test.py`**: Basic I2C communication test
+- **`test_comprehensive.py`**: Comprehensive test suite covering all features:
+  - Color mixing (A, Y, X buttons)
+  - Brush size (L, R buttons)
+  - Symmetry modes (Start button)
+  - Position tracking (D-pad)
+  - Fill rectangle mode (Select, B buttons)
+  - Undo/Redo (L+R, Select+Start combos)
+  - I2C communication
+  - Paint enable logic
+  - Integration test
 
 ## How to run
 
-To run the RTL simulation:
-
+### Run basic I2C test:
 ```sh
 make -B
 ```
 
-To run gatelevel simulation, first harden your project and copy `../runs/wokwi/results/final/verilog/gl/{your_module_name}.v` to `gate_level_netlist.v`.
+### Run comprehensive test suite:
+```sh
+make -B MODULE=test_comprehensive
+```
+
+### Run gate-level simulation:
+First harden your project and copy `../runs/wokwi/results/final/verilog/gl/tt_um_example.v` to `gate_level_netlist.v`.
 
 Then run:
-
 ```sh
-make -B GATES=yes
+make -B GATES=yes MODULE=test_comprehensive
 ```
 
 ## How to view the VCD file

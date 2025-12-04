@@ -37,9 +37,10 @@ module packet_generator (
             case (state)
                 IDLE: begin
                     busy <= 1'b0;
+                    // Trigger whenever trigger is high - will use current position
                     if (trigger) begin
                         busy <= 1'b1;
-                        base_x <= x_in;
+                        base_x <= x_in;  // Capture current position
                         base_y <= y_in;
                         size <= {1'b0, brush_size};  // Extend to 4 bits
                         bx <= 4'd0; by <= 4'd0; sym <= 2'd0;

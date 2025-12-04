@@ -38,7 +38,8 @@ VERILOG_SOURCES += $(PWD)/tb.v
 TOPLEVEL = tb
 
 # MODULE is the basename of the Python test file
-MODULE = test
+# Use 'make MODULE=test_comprehensive' to run comprehensive tests
+MODULE ?= test
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
