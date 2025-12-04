@@ -31,7 +31,7 @@ The design occupies a single 1x1 tile (~167x108 µm) and achieves approximately 
 | **Symmetry Modes** | Off, Horizontal mirror, Vertical mirror, 4-way symmetry |
 | **Fill Rectangle** | Define two corners and fill the area with current color |
 | **Undo/Redo** | 4-operation history buffer |
-| **I2C Output** | Stream canvas updates to host at address `0x64` |
+| **I2C Output** | 4-byte status: position, color, brush settings (address `0x64`) |
 | **Smart Paint Mode** | No color selected = move without painting |
 
 ---
@@ -201,15 +201,16 @@ Tiny Canvas operates as an I2C slave at address **`0x64`** (7-bit: `1100100`).
 
 ### Reading Canvas State
 
-Perform an I2C read of 3 bytes to get the current pixel data:
+Perform an I2C read of 4 bytes to get the current pixel data and brush settings:
 
 | Byte | Content | Description |
 |------|---------|-------------|
 | 0 | `X Position` | 0-255, cursor X coordinate |
 | 1 | `Y Position` | 0-255, cursor Y coordinate |
-| 2 | `Status` | Packed status byte |
+| 2 | `Status` | Packed status byte (D-Pad + mode + color) |
+| 3 | `Brush Status` | Packed brush settings byte |
 
-### Status Byte Format
+### Status Byte Format (Byte 2)
 
 ```
 Bit 7   Bit 6   Bit 5   Bit 4   Bit 3   Bit 2   Bit 1   Bit 0
@@ -224,6 +225,23 @@ Bit 7   Bit 6   Bit 5   Bit 4   Bit 3   Bit 2   Bit 1   Bit 0
 | `[7:4]` | D-Pad | Current direction buttons pressed |
 | `[3]` | Brush Mode | 1 = Brush, 0 = Eraser |
 | `[2:0]` | Color | RGB color value (see color mixing table) |
+
+### Brush Status Byte Format (Byte 3)
+
+```
+Bit 7   Bit 6   Bit 5   Bit 4   Bit 3   Bit 2   Bit 1   Bit 0
+┌───────┬───────┬───────┬───────┬───────┬───────┬───────┬───────┐
+│ RSVD  │ RSVD  │ FILL  │  SYM1 │  SYM0 │ SIZE2 │ SIZE1 │ SIZE0 │
+└───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘
+  Reserved       Fill   Symmetry Mode      Brush Size (0-7)
+```
+
+| Bits | Field | Description |
+|------|-------|-------------|
+| `[7:6]` | Reserved | Always `00` |
+| `[5]` | Fill Active | 1 = Fill rectangle mode is active |
+| `[4:3]` | Symmetry | `00`=Off, `01`=H-Mirror, `10`=V-Mirror, `11`=4-Way |
+| `[2:0]` | Brush Size | 0-7 (actual brush is (size+1)×(size+1) pixels) |
 
 ### Example I2C Transaction
 
@@ -403,22 +421,34 @@ i2c = I2C(0, scl=Pin(SCL_PIN), sda=Pin(SDA_PIN), freq=100000)
 
 CANVAS_ADDR = 0x64
 
+SYMMETRY_NAMES = ["Off", "H-Mirror", "V-Mirror", "4-Way"]
+
 def read_canvas():
-    data = i2c.readfrom(CANVAS_ADDR, 3)
+    data = i2c.readfrom(CANVAS_ADDR, 4)
     x = data[0]
     y = data[1]
     status = data[2]
+    brush_status = data[3]
     
+    # Parse status byte
     color = status & 0x07
     brush_mode = (status >> 3) & 0x01
     dpad = (status >> 4) & 0x0F
     
-    return x, y, color, brush_mode, dpad
+    # Parse brush status byte
+    brush_size = brush_status & 0x07
+    symmetry = (brush_status >> 3) & 0x03
+    fill_active = (brush_status >> 5) & 0x01
+    
+    return x, y, color, brush_mode, dpad, brush_size, symmetry, fill_active
 
 # Continuous reading
 while True:
-    x, y, color, mode, dpad = read_canvas()
-    print(f"Pos: ({x}, {y}) Color: {color:03b} Mode: {'Brush' if mode else 'Eraser'}")
+    x, y, color, mode, dpad, size, sym, fill = read_canvas()
+    print(f"Pos: ({x}, {y}) Color: {color:03b} Brush: {size+1}x{size+1}")
+    print(f"  Mode: {'Brush' if mode else 'Eraser'} Symmetry: {SYMMETRY_NAMES[sym]}")
+    if fill:
+        print("  [FILL MODE ACTIVE]")
 ```
 
 ---
